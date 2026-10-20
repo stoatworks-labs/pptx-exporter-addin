@@ -1,0 +1,52 @@
+{
+  "name": "pptx-exporter-addin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A PowerPoint task-pane add-in that exports a deck to every format PowerPoint can, and the ones it can't: images at any size, PDFs and handouts, video and GIF, a self-contained HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and Marp, and more — each with its own options.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "serve:dist": "python3 scripts/serve-dist.py --dir dist --port 4321",
+    "deploy": "npm run build && npx wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "certs": "office-addin-dev-certs install",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "fixtures": "bash scripts/make-fixtures.sh",
+    "sideload:mac": "bash scripts/sideload-mac.sh",
+    "sideload:mac:hosted": "bash scripts/sideload-mac.sh --hosted",
+    "sideload:windows": "pwsh scripts/sideload-windows.ps1",
+    "docs": "UPDATE_DOCS=1 vitest run test/docs.test.ts",
+    "fonts": "bash scripts/make-pdf-fonts.sh",
+    "icons": ".venv/bin/python scripts/make-icons.py",
+    "check:office": "SAMPLES_DIR=.out/office vitest run test/office.test.ts && .venv/bin/python scripts/check-office.py .out/office",
+    "pane": "bash scripts/pane.sh"
+  },
+  "dependencies": {
+    "@jsquash/avif": "^2.1.1",
+    "@jsquash/webp": "^1.5.0",
+    "@pdf-lib/fontkit": "^1.1.1",
+    "fflate": "^0.8.3",
+    "gifenc": "^1.0.3",
+    "mp4-muxer": "^5.2.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
+    "reveal.js": "^6.0.2",
+    "webm-muxer": "^5.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/office-js": "^1.0.613",
+    "fast-png": "^8.0.0",
+    "jsdom": "^30.1.3",
+    "office-addin-dev-certs": "^3.0.1",
+    "office-addin-manifest": "^3.0.1",
+    "typescript": "^5.9.3",
+    "utif2": "^4.1.0",
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
+  }
+}

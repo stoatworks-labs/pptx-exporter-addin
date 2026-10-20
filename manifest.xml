@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  XML (add-in only) manifest — the shape with the longest-standing support on
+  PowerPoint for Mac, which is a first-class target here. Hosts: PowerPoint
+  2016+/Windows, 2019+/Mac, web, Microsoft 365.
+
+  THIS IS THE PRODUCTION MANIFEST. Every URL points at the hosted build on
+  https://pptx-exporter-addin.stoatworks-labs.com — the origin wrangler.toml
+  deploys to — so this file is what a user sideloads, verbatim: it is served at
+  /manifest.xml on that origin and attached to every GitHub release. Do not
+  point it at localhost. For development scripts/sideload-mac.sh rewrites the
+  origin to https://localhost:3000 on the way into PowerPoint, and
+  test/manifest.test.ts fails if a localhost URL is ever committed here.
+
+  No <Requirements>: the pane checks PowerPointApi at runtime and falls back to
+  rasterising PowerPoint's PDF where Slide.getImageAsBase64 (1.8) is missing,
+  so older PowerPoint still gets most formats.
+
+  <Version> is the MANIFEST version, not the release version. Office requires it
+  to be >= 1.0 and caches manifests by it — bump it when THIS FILE changes in a
+  way a host must notice (URLs, permissions, ribbon, icons), not on every
+  release. The release version lives in package.json.
+-->
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+  <Id>5521a520-0338-4007-abe7-46f826fd92b0</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>Stoatworks</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Advanced Exporter" />
+  <Description DefaultValue="Export slides to images at any size, PDFs and handouts, video and GIF, an HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and more — each with its own options." />
+  <IconUrl DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/icons/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/icons/icon-80.png" />
+  <SupportUrl DefaultValue="https://github.com/stoatworks-labs/pptx-exporter-addin" />
+  <Hosts>
+    <Host Name="Presentation" />
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="getStarted.title" />
+            <Description resid="getStarted.desc" />
+            <LearnMoreUrl resid="url.support" />
+          </GetStarted>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="advx.group">
+                <Label resid="group.label" />
+                <Icon>
+                  <bt:Image size="16" resid="icon.16" />
+                  <bt:Image size="32" resid="icon.32" />
+                  <bt:Image size="80" resid="icon.80" />
+                </Icon>
+                <Control xsi:type="Button" id="advx.open">
+                  <Label resid="open.label" />
+                  <Supertip>
+                    <Title resid="open.label" />
+                    <Description resid="open.desc" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon.16" />
+                    <bt:Image size="32" resid="icon.32" />
+                    <bt:Image size="80" resid="icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>advx.taskpane</TaskpaneId>
+                    <SourceLocation resid="url.taskpane" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon.16" DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/icons/icon-16.png" />
+        <bt:Image id="icon.32" DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/icons/icon-32.png" />
+        <bt:Image id="icon.80" DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/icons/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="url.taskpane" DefaultValue="https://pptx-exporter-addin.stoatworks-labs.com/taskpane.html" />
+        <bt:Url id="url.support" DefaultValue="https://github.com/stoatworks-labs/pptx-exporter-addin" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="group.label" DefaultValue="Export" />
+        <bt:String id="open.label" DefaultValue="Advanced Exporter" />
+        <bt:String id="getStarted.title" DefaultValue="Advanced Exporter is ready" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="open.desc" DefaultValue="Export this presentation to images, PDFs, handouts, video, HTML5, LaTeX, Markdown and more." />
+        <bt:String id="getStarted.desc" DefaultValue="Open Advanced Exporter from the Home tab to export this presentation." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

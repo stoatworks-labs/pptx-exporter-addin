@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Advanced Exporter for PowerPoint — add-in</title>
+    <meta name="description" content="A PowerPoint add-in that exports a deck to images at any size, PDFs and handouts, video and GIF, a self-contained HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and more — each with its own options." />
+    <link rel="icon" href="/icons/icon-64.png" type="image/png" />
+    <meta property="og:title" content="Advanced Exporter for PowerPoint" />
+    <meta property="og:description" content="Every export PowerPoint has, the ones it hasn't, and the options it never gave you." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://pptx-exporter-addin.stoatworks-labs.com/" />
+    <meta property="og:image" content="https://pptx-exporter-addin.stoatworks-labs.com/icons/icon-512.png" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #201f1e; --muted: #605e5c; --bg: #faf9f8; --card: #fff; --line: #edebe9;
+        --brand: #a8541c; --brand-ink: #fbfbfa; --warn: #8a6d00;
+        --sw-support-accent: var(--brand);
+        font: 15px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --fg: #f3f2f1; --muted: #a19f9d; --bg: #201f1e; --card: #292827; --line: #3b3a39; --brand: #e08a4e; --brand-ink: #1b1a19; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: var(--fg); background: var(--bg); }
+      main { max-width: 780px; margin: 0 auto; padding: 40px 20px 24px; }
+      header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+      header img { width: 56px; height: 56px; border-radius: 12px; flex: none; }
+      h1 { font-size: 28px; line-height: 1.15; margin: 0; }
+      h1 small { display: block; font-size: 15px; font-weight: 500; color: var(--muted); margin-top: 4px; }
+      h2 { font-size: 19px; margin: 32px 0 10px; }
+      h3 { font-size: 15px; margin: 18px 0 6px; }
+      p, li { margin: 0 0 10px; }
+      a { color: var(--brand); }
+      code, kbd { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+      .lede { font-size: 17px; }
+      .cta { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 4px; padding: 10px 16px; border-radius: 6px; background: var(--brand); color: var(--brand-ink); font-weight: 600; text-decoration: none; }
+      .cta:hover { filter: brightness(1.08); }
+      .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 10px 0; }
+      .card h3 { margin-top: 0; }
+      .status { border-left: 4px solid var(--warn); }
+      ol { padding-left: 22px; }
+      ol li { margin-bottom: 8px; }
+      table { border-collapse: collapse; width: 100%; font-size: 14px; }
+      th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-top: 1px solid var(--line); }
+      th { white-space: nowrap; }
+      .fine { color: var(--muted); font-size: 13px; }
+      .wrap { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/icons/icon-128.png" width="56" height="56" alt="" />
+        <h1>Advanced Exporter for PowerPoint<small>An add-in, from Stoatworks Labs · <span id="version"></span></small></h1>
+      </header>
+
+      <p class="lede">PowerPoint will save a deck as a PDF, a picture per slide or a video, and it asks you remarkably little about any of them. This add-in does all of those with the options left in — size, resolution, quality, slide range, letterboxing — and then carries on into the formats PowerPoint never got round to: a self-contained HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and Marp, handouts, notes pages, and a few more.</p>
+
+      <a class="cta" href="/manifest.xml" download="manifest.xml">Download manifest.xml</a>
+      <p class="meta">One small XML file. It points PowerPoint at this site; nothing is installed on your machine and nothing about your deck leaves it. <a href="https://github.com/stoatworks-labs/pptx-exporter-addin">Source and issues on GitHub</a></p>
+
+      <div class="card status" id="status">
+        <h3>Where it has been tried</h3>
+        <p>Built and tested against PowerPoint for Mac 16.112. PowerPoint for Windows and on the web are in the manifest but haven't been run here. If you try either, <a href="https://github.com/stoatworks-labs/pptx-exporter-addin/issues">say how it went</a>.</p>
+      </div>
+
+      <h2>What it exports</h2>
+      <div class="wrap">
+        <table>
+          <tr><th>Images</th><td>PNG, JPEG, WebP, AVIF, TIFF (single or multi-page, LZW/Deflate/PackBits), BMP, TGA, GIF, SVG with live links, and a contact sheet. Any size from a thumbnail to 8K, or a print resolution in dpi, letterboxed or cropped to an exact raster when the deck's shape doesn't match the screen's.</td></tr>
+          <tr><th>Documents</th><td>PowerPoint's own vector PDF, trimmed to a range or split per slide; a picture PDF that keeps hidden slides and links; handouts 1, 2, 3 (with lines), 4, 6 or 9 to a page; notes pages; a Word notes document; OpenDocument.</td></tr>
+          <tr><th>Web</th><td>A self-contained HTML5 presentation with transitions, a presenter view, clickable links and the deck's embedded video; reveal.js; a scrolling page that reads well on a phone.</td></tr>
+          <tr><th>Video</th><td>MP4 (H.264, HEVC, AV1) and WebM (VP9, VP8, AV1) at any frame rate, timed from the deck's rehearsed timings or your own, with captions from the notes; animated GIF.</td></tr>
+          <tr><th>Text</th><td>LaTeX Beamer — the slides as drawn, or rebuilt as editable LaTeX — or a LaTeX article with the notes; Markdown, Marp and Pandoc/Quarto; an outline PowerPoint reads back in; the speaker notes alone; CSV; JSON.</td></tr>
+          <tr><th>PowerPoint</th><td>A cleaned copy (notes, comments, hidden slides or personal details removed), as a show or a template; one file per slide; a flattened deck of pictures that plays the same on a machine without your fonts.</td></tr>
+        </table>
+      </div>
+
+      <h2>Install</h2>
+      <p>Office add-ins install from a manifest. Download the file above, then:</p>
+
+      <h3>PowerPoint for Mac</h3>
+      <ol>
+        <li>Copy <code>manifest.xml</code> into <code>~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/</code> (make the <code>wef</code> folder if it isn't there).</li>
+        <li>Quit PowerPoint completely (<kbd>⌘Q</kbd>) and open it again.</li>
+        <li>Open a deck, then <strong>Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter</strong>. After that first time an <strong>Advanced Exporter</strong> button stays on the Home tab.</li>
+      </ol>
+
+      <h3>PowerPoint on the web, and Microsoft 365 on Windows</h3>
+      <ol>
+        <li><strong>Home ▸ Add-ins ▸ More Add-ins</strong> (or <strong>Insert ▸ Add-ins</strong>), then <strong>My Add-ins ▸ Upload My Add-in</strong>.</li>
+        <li>Pick the downloaded <code>manifest.xml</code>. The pane opens from the Home tab.</li>
+      </ol>
+
+      <h2>The honest limits</h2>
+      <div class="card">
+        <p><strong>Animations don't come along.</strong> Every picture-based format shows each slide as it looks once its builds have finished. Video and GIF are slides with transitions between them, not a recording of the slide show.</p>
+        <p><strong>Hidden slides aren't in PowerPoint's PDF.</strong> The vector PDF formats say so when your range includes one; the picture-based ones draw it anyway.</p>
+        <p><strong>It needs a reasonably recent PowerPoint for the best pictures.</strong> PowerPoint draws each slide for the add-in on version 16.96 or later on a Mac, and Microsoft 365 version 2504 or later on Windows. Older versions (and Office LTSC) fall back to rasterising PowerPoint's PDF, which works but leaves hidden slides out.</p>
+      </div>
+
+      <p class="fine">Open source under the MIT licence. PDF text uses Noto Sans (SIL Open Font Licence). WebP and AVIF encoding is Squoosh's codecs via jSquash (Apache 2.0); PDFs are written with pdf-lib and read with pdf.js (MIT, Apache 2.0).</p>
+    </main>
+    <script type="module" src="/src/index.ts"></script>
+    <script src="/support-footer.js" defer
+            data-app="Advanced Exporter for PowerPoint"
+            data-repo="https://github.com/stoatworks-labs/pptx-exporter-addin"
+            data-note="Everything happens inside PowerPoint on your machine; the deck is never uploaded."></script>
+  </body>
+</html>

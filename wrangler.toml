@@ -1,0 +1,28 @@
+# Cloudflare deployment for Advanced Exporter (PowerPoint add-in).
+#
+# A static-assets-only Worker: no server code. PowerPoint loads taskpane.html
+# from this origin into its task pane (WKWebView on Mac, WebView2 on Windows,
+# an iframe on the web) and everything — reading the deck, rendering, encoding,
+# zipping — happens inside that web view. Nothing is uploaded.
+#
+# The same origin serves /manifest.xml (the file a user sideloads) and / (an
+# install page). The manifest hard-codes this hostname, so the hostname is part
+# of the add-in's identity: move it and every installed copy breaks until the
+# user sideloads a new manifest.
+#
+# The fleet is on Workers with static assets, not Pages. `wrangler deploy`
+# runs no build — `npm run deploy` builds first. Deploy with
+# `cf-run npm run deploy` (keychain token), never `wrangler login`.
+
+name = "pptx-exporter-addin"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+# Serve exactly the paths the manifest names: /taskpane.html must never 307 to
+# /taskpane. public/_redirects maps / back to /index.html.
+html_handling = "none"
+
+[[routes]]
+pattern = "pptx-exporter-addin.stoatworks-labs.com"
+custom_domain = true

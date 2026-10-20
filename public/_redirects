@@ -1,0 +1,5 @@
+# wrangler.toml sets html_handling = "none" so /taskpane.html — the URL in
+# every installed manifest — is served as the file it names, never with a 307
+# to /taskpane. That also stops / meaning /index.html, so this puts exactly
+# that one mapping back as a rewrite (200, not a redirect).
+/  /index.html  200
