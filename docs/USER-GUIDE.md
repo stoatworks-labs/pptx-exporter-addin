@@ -6,6 +6,10 @@ a range of slides), video, an HTML5 presentation, LaTeX, Markdown, and cleaned-u
 deck itself. It sits in a pane beside the deck. You tick the formats you want, set each one's
 options, press **Export**, and PowerPoint asks where to save the file.
 
+> **Released at v0.1.0.** The hosted build, which is what `manifest.xml` installs, opens and
+> exports in PowerPoint for Mac. The full run below used the development build of the same
+> code.
+>
 > **Checked in PowerPoint for Mac 16.112.3 on macOS 26.4.1 (2026-10-20):** every format below
 > was exported from a real deck inside PowerPoint, and every file was checked with something
 > other than the add-in. Pictures were opened in Pillow, TIFFs decoded by libtiff, video

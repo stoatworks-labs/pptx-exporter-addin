@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-10-20
 
 First version. 31 formats in six groups, each with its own options, exported from the open deck
 inside PowerPoint: pictures (PNG, JPEG, WebP, AVIF, TIFF, BMP, TGA, GIF, SVG, contact sheet),

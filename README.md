@@ -42,9 +42,9 @@ Every option for every format is in the [user guide](docs/USER-GUIDE.md).
 - **Windows and the web: untested.** Both are in the manifest's host list. Nothing here has run
   on them, because no machine here has desktop PowerPoint for Windows.
 - **Hosted** at <https://pptx-exporter-addin.stoatworks-labs.com> since 2026-10-20. The
-  production build was checked under its own CSP in a Chromium browser; the PowerPoint runs
-  above used the dev build from `localhost`, so the hosted copy hasn't yet been loaded by
-  PowerPoint itself.
+  production build was checked under its own CSP in a Chromium browser, then loaded in
+  PowerPoint for Mac from the production manifest, where it opened and exported. The
+  every-format run above used the dev build from `localhost`.
 
 ## Install
 
@@ -173,3 +173,7 @@ PDFs are written with [pdf-lib](https://github.com/Hopding/pdf-lib) (MIT) and re
 [Noto Sans](https://notofonts.github.io) (SIL Open Font Licence, `src/assets/fonts/OFL.txt`).
 
 MIT licence.
+
+<!-- attributions:start -->
+This project is built on other people's work — see [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
+<!-- attributions:end -->
