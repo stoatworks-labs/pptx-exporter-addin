@@ -12,7 +12,8 @@ describe('manifest.xml is the production manifest', () => {
     expect(urls.filter((u) => /localhost|127\.0\.0\.1/.test(u))).toEqual([])
   })
   it('points every pane and icon URL at the hostname wrangler deploys to', () => {
-    const host = /pattern\s*=\s*"([^"]+)"/.exec(wrangler)![1]
+    // A route pattern ("host/*") or a custom domain ("host").
+    const host = /pattern\s*=\s*"([^"/]+)/.exec(wrangler)![1]
     const ours = urls.filter((u) => !u.includes('github.com'))
     expect(ours.length).toBeGreaterThan(5)
     for (const u of ours) expect(new URL(u).host).toBe(host)
