@@ -10,7 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "serve:dist": "python3 scripts/serve-dist.py --dir dist --port 4321",
-    "deploy": "npm run build && npx wrangler deploy",
+    "deploy": "npm run build && npx --yes wrangler@4.116.0 deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "certs": "office-addin-dev-certs install",

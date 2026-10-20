@@ -1,0 +1,40 @@
+# Keeps dependencies current across the fleet.
+#
+# Minor and patch bumps are grouped into a single PR per ecosystem per week, so
+# routine drift costs one review rather than twenty. Majors still arrive as
+# their own PRs, because they need reading.
+#
+# Deliberately no `ignore:` rules — an ignore also suppresses the *security*
+# update for that dependency, which is exactly the PR worth having.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Peer-locked families move together, whatever the bump size (see the
+      # fleet's dependabot.yml files for the react-19-against-react-dom-18 story
+      # this rule comes from). These sit ABOVE the minor-and-patch group because
+      # Dependabot files a dependency under the first group that matches it.
+      vite-toolchain:
+        patterns: ["vite", "@vitejs/*", "vitest", "@vitest/*", "esbuild", "rolldown", "rolldown-vite", "typescript"]
+        update-types: ["major", "minor", "patch"]
+      # The two Microsoft add-in tools move in lockstep with each other and with
+      # the Office.js typings.
+      office-addin-tooling:
+        patterns: ["office-addin-*", "@types/office-js"]
+        update-types: ["major", "minor", "patch"]
+      npm-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

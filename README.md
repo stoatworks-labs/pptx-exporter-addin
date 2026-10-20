@@ -128,8 +128,15 @@ files.
 `manifest.xml` is the production manifest: every URL in it points at
 `https://pptx-exporter-addin.stoatworks-labs.com`, and `test/manifest.test.ts` fails if one
 points anywhere else or stops matching `wrangler.toml`. `npm run build` puts the pane, the
-install page, the icons, `_headers` and a copy of the manifest in `dist/`, and
-`cf-run npm run deploy` publishes it as a Cloudflare Worker with static assets. The CSP in
+install page, the icons, `_headers` and a copy of the manifest in `dist/`.
+[`deploy.yml`](.github/workflows/deploy.yml) publishes that as a Cloudflare Worker with static
+assets on every push to main, then checks the live origin is serving the build it just made;
+`cf-run npm run deploy` does the same from a laptop. The workflow needs the repo secret
+`CLOUDFLARE_API_TOKEN` and the variable `CLOUDFLARE_ACCOUNT_ID`.
+
+Releasing: bump `package.json` (and the lockfile), commit, tag `vX.Y.Z` and push the tag.
+[`release.yml`](.github/workflows/release.yml) checks the tag against `package.json`, validates
+the manifest and attaches it to a GitHub release. The CSP in
 [`public/_headers`](public/_headers) lets Office.js load from Microsoft's CDN and lets PowerPoint
 on the web frame the pane; `npm run serve:dist` serves `dist/` with those headers applied.
 

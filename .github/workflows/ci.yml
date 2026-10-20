@@ -1,0 +1,57 @@
+name: ci
+
+# Gates every push and pull request on the same three things deploy.yml runs
+# before it ships: the tests (the deck parser, encoders, layouts, Office packages, and that manifest.xml is
+# still the production manifest), the build (`tsc --noEmit && vite build`, so this is
+# the typecheck too), and Microsoft's manifest validator — which is the one check
+# here that calls out to a web service and could therefore fail on a bad day
+# without anything in this repo having changed. If it does, read its output:
+# "Manifest Version Too Low" or a missing icon is real, a timeout is not.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # Deliberately a plain `npm ci` — no --legacy-peer-deps. A bump that only
+      # installs by ignoring the peer graph is exactly what this is here to catch.
+      - name: Install dependencies
+        run: npm ci
+      - name: Lockfile matches manifest
+        run: npm ls --all >/dev/null
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate manifest.xml against Microsoft's schema
+        run: npm run validate
+
+      # Loads the built pages in a real browser and fails on any runtime error.
+      # Outside PowerPoint the pane cannot do anything, but it must still render
+      # — Office.js is fetched from Microsoft's CDN and its absence or a thrown
+      # error on load is what this catches. `root: body` because the pane is not
+      # an app with a mount point; its static text is the proof of life.
+      - name: Smoke-check the install page
+        uses: stoatworks-labs/smoke-check@v1
+        with:
+          dir: dist
+      - name: Smoke-check the task pane
+        uses: stoatworks-labs/smoke-check@v1
+        with:
+          dir: dist
+          path: /taskpane.html
+          root: body
