@@ -44,9 +44,9 @@
     "jsdom": "^30.1.3",
     "office-addin-dev-certs": "^3.0.1",
     "office-addin-manifest": "^3.0.1",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "utif2": "^4.1.0",
-    "vite": "^7.3.7",
+    "vite": "^8.3.4",
     "vitest": "^5.0.5"
   }
 }
