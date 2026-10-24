@@ -56,6 +56,26 @@ describe('Video bundle', () => {
     expect(r.warnings).toEqual(['There’s no video or sound on the exported slides.'])
   })
 
+  it('takes PowerPoint’s "NULL" link on a trimmed clip for no link', async () => {
+    // PowerPoint for Mac 16.112.3 wrote the trimmed clip's videoFile link as
+    // an External video relationship to "NULL", the file through p14:media.
+    const zip = unzipSync(fixture('sample-16x9.pptx'))
+    const rels = 'ppt/slides/_rels/slide9.xml.rels'
+    zip[rels] = strToU8(strFromU8(zip[rels]).replace(
+      'Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/media1.mp4"',
+      'Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="NULL" TargetMode="External"'))
+    const bytes = zipSync(zip)
+    const deck = parseDeck(bytes)
+    const files = new Map<string, Uint8Array | string>()
+    const warnings: string[] = []
+    const ctx = { deck, pptx: bytes, slides: deck.slides, base: 'sample', add: (p: string, d: Uint8Array | string) => void files.set(p, d), progress: () => {}, warn: (m: string) => void warnings.push(m), signal: new AbortController().signal } as unknown as ExportContext
+    await mediaBundle.run(ctx, { which: 'slides', audio: true, names: 'slides' })
+    expect([...files.keys()]).toHaveLength(2)
+    expect(text(files.get('MEDIA.txt'))).not.toMatch(/LINKED|NULL/)
+    expect(warnings).toEqual([])
+    expect(deck.slides[8].shapes.find((s) => s.kind === 'media')?.media?.part).toBe('ppt/media/media1.mp4')
+  })
+
   it('lists an online film in MEDIA.txt and nothing else, since nothing is embedded', async () => {
     const r = await runFormat(mediaBundle, {}, { deck: FM + 'online-video.pptx' })
     expect([...r.files.keys()]).toEqual(['MEDIA.txt'])
