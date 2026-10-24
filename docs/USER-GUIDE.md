@@ -37,8 +37,9 @@ add-in's web address. Nothing is installed on your machine.
 2. Copy it into `~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/` (make the
    `wef` folder if it isn't there).
 3. Quit PowerPoint completely and open it again.
-4. Open a deck, then **Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter**. After that
-   first time an **Advanced Exporter** button stays on the Home tab.
+4. Open a deck, then **Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter**. That also
+   puts an **Advanced Exporter** button on the Home tab until PowerPoint quits; next time,
+   start from **Home ▸ Add-ins** again.
 
 **PowerPoint on the web, and Microsoft 365 on Windows**
 

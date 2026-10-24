@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Distribution for "Advanced Exporter for PowerPoint.pkg". build-pkg.sh fills
+  in the version from package.json. The component package has no payload: its
+  postinstall copies the manifest into PowerPoint's wef folder.
+
+  Installs for the current user only (no admin password): the wef folder is in
+  the user's own PowerPoint container, and an add-in sideloaded there is that
+  user's alone.
+-->
+<installer-gui-script minSpecVersion="2">
+  <title>Advanced Exporter for PowerPoint</title>
+  <organization>com.stoatworks</organization>
+  <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+  <options customize="never" require-scripts="true" rootVolumeOnly="false" hostArchitectures="arm64,x86_64"/>
+  <welcome file="install-welcome.html" mime-type="text/html"/>
+  <conclusion file="install-conclusion.html" mime-type="text/html"/>
+  <installation-check script="checkPowerPoint()"/>
+  <script><![CDATA[
+function checkPowerPoint() {
+  // Files, not system.applications: fromIdentifier() only finds a RUNNING app,
+  // so with PowerPoint closed (which is how must-close leaves it) it reported
+  // PowerPoint as not installed (Font Manager's installer, 2026-10-24).
+  var home = system.env.HOME;
+  // The wef folder lives in PowerPoint's sandbox container, which PowerPoint
+  // creates the first time it runs. Its existence is the real test: PowerPoint
+  // has run on this account, wherever the app itself lives. Making the folder
+  // by hand before then is asking for a container macOS doesn't recognise.
+  var container = !!home && system.files.fileExistsAtPath(home + '/Library/Containers/com.microsoft.Powerpoint');
+  var app = system.files.fileExistsAtPath('/Applications/Microsoft PowerPoint.app') ||
+    (!!home && system.files.fileExistsAtPath(home + '/Applications/Microsoft PowerPoint.app'));
+  system.log('advanced-exporter: HOME=' + home + ' container=' + container + ' app=' + app);
+  if (container || !home) return true; // no HOME: can't tell, so don't block on it
+  my.result.type = 'Fatal';
+  if (!app) {
+    my.result.title = 'PowerPoint isn’t installed';
+    my.result.message = 'Advanced Exporter is an add-in for Microsoft PowerPoint for Mac. Install PowerPoint, open it once, then run this installer again.';
+  } else {
+    my.result.title = 'Open PowerPoint once first';
+    my.result.message = 'PowerPoint hasn’t been opened on this account yet, so it has nowhere to keep add-ins. Open PowerPoint, quit it, then run this installer again.';
+  }
+  return false;
+}
+  ]]></script>
+  <choices-outline>
+    <line choice="default">
+      <line choice="com.stoatworks.pptx-exporter-addin.install"/>
+    </line>
+  </choices-outline>
+  <choice id="default"/>
+  <choice id="com.stoatworks.pptx-exporter-addin.install" visible="false">
+    <pkg-ref id="com.stoatworks.pptx-exporter-addin.install"/>
+  </choice>
+  <pkg-ref id="com.stoatworks.pptx-exporter-addin.install" version="@VERSION@" onConclusion="none">install-component.pkg</pkg-ref>
+  <!-- PowerPoint reads the wef folder at launch, so it has to be closed. -->
+  <pkg-ref id="com.stoatworks.pptx-exporter-addin.install">
+    <must-close>
+      <app id="com.microsoft.Powerpoint"/>
+    </must-close>
+  </pkg-ref>
+</installer-gui-script>

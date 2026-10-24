@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+Installers: a signed, notarised Mac `.pkg` with an uninstaller `.pkg`, and a per-user Windows
+`Setup.exe` with an Installed apps entry. They put `manifest.xml` where PowerPoint looks for
+sideloaded add-ins, which is all an Office.js add-in can have outside Microsoft Marketplace.
+The Home-tab button is now described as it behaves: it lasts until PowerPoint quits.
+
 ## 0.1.0 — 2026-10-20
 
 First version. 31 formats in six groups, each with its own options, exported from the open deck

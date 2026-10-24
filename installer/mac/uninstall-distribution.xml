@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Distribution for "Uninstall Advanced Exporter for PowerPoint.pkg".
+  build-pkg.sh fills in the version from package.json. No payload; the
+  postinstall removes the manifest. No check for PowerPoint: uninstalling has
+  to work after PowerPoint has gone.
+-->
+<installer-gui-script minSpecVersion="2">
+  <title>Uninstall Advanced Exporter for PowerPoint</title>
+  <organization>com.stoatworks</organization>
+  <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+  <options customize="never" require-scripts="true" rootVolumeOnly="false" hostArchitectures="arm64,x86_64"/>
+  <welcome file="uninstall-welcome.html" mime-type="text/html"/>
+  <conclusion file="uninstall-conclusion.html" mime-type="text/html"/>
+  <choices-outline>
+    <line choice="default">
+      <line choice="com.stoatworks.pptx-exporter-addin.uninstall"/>
+    </line>
+  </choices-outline>
+  <choice id="default"/>
+  <choice id="com.stoatworks.pptx-exporter-addin.uninstall" visible="false">
+    <pkg-ref id="com.stoatworks.pptx-exporter-addin.uninstall"/>
+  </choice>
+  <pkg-ref id="com.stoatworks.pptx-exporter-addin.uninstall" version="@VERSION@" onConclusion="none">uninstall-component.pkg</pkg-ref>
+  <pkg-ref id="com.stoatworks.pptx-exporter-addin.uninstall">
+    <must-close>
+      <app id="com.microsoft.Powerpoint"/>
+    </must-close>
+  </pkg-ref>
+</installer-gui-script>

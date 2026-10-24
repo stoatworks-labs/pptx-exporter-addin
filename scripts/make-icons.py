@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Draw the add-in's icons (public/icons/*.png and icon.svg).
+"""Draw the add-in's icons (public/icons/*.png, and the Windows installer's
+installer/windows/icon.ico).
 
 A slide with an arrow leaving it, on the Stoatworks rust orange. Drawn, not
 an SF Symbol or Fluent icon — neither licence allows them in an app's icon.
@@ -11,6 +12,7 @@ from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', 'public', 'icons')
+ICO = os.path.join(HERE, '..', 'installer', 'windows', 'icon.ico')
 BG = (168, 84, 28)
 BG2 = (196, 108, 46)
 INK = (255, 255, 255)
@@ -57,7 +59,8 @@ def main():
     big = draw()
     for n in (16, 32, 64, 80, 128, 192, 512):
         big.resize((n, n), Image.LANCZOS).save(os.path.join(OUT, f'icon-{n}.png'))
-    print('wrote', OUT)
+    big.resize((256, 256), Image.LANCZOS).save(ICO, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (256, 256)])
+    print('wrote', OUT, 'and', ICO)
 
 
 if __name__ == '__main__':

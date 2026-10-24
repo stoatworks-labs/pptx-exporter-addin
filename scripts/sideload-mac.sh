@@ -12,11 +12,14 @@
 # trusted (npm run certs).
 #
 # Both copies carry the same add-in <Id>, so PowerPoint treats them as the same
-# add-in: sideload one or the other, never both at once.
+# add-in: sideload one or the other, never both at once. This takes out any
+# other file with that Id first, the installer's stoatworks-advanced-exporter.xml
+# included, and nothing else.
 #
-# NOTE: the custom Home-tab button may only appear after you launch the add-in
-# once from  Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter  — a known
-# wef-sideload quirk. After that first launch the ribbon button sticks.
+# NOTE: the custom Home-tab button appears only once the add-in has been opened
+# from  Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter, and is gone again
+# after PowerPoint relaunches (measured with Font Manager, sideloaded the same
+# way, on PowerPoint for Mac 16.112.3, 2026-10-24).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 WEF="$HOME/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef"
@@ -33,6 +36,13 @@ done
 
 mkdir -p "$WEF"
 dst="$WEF/pptx-exporter.manifest.xml"
+id="$(sed -n 's:.*<Id>\(.*\)</Id>.*:\1:p' "$HERE/manifest.xml" | head -n 1)"
+for f in "$WEF"/*.xml; do
+  if [ -f "$f" ] && [ "$f" != "$dst" ] && grep -q "<Id>$id</Id>" "$f"; then
+    rm -f "$f"
+    echo "Removed another copy: $f"
+  fi
+done
 if [ "$mode" = "hosted" ]; then
   cp "$HERE/manifest.xml" "$dst"
   echo "Sideloaded the PRODUCTION manifest ($HOSTED) → $dst"

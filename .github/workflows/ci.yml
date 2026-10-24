@@ -1,8 +1,8 @@
 name: ci
 
 # Gates every push and pull request on the same three things deploy.yml runs
-# before it ships: the tests (the deck parser, encoders, layouts, Office packages, and that manifest.xml is
-# still the production manifest), the build (`tsc --noEmit && vite build`, so this is
+# before it ships: the tests (the deck parser, encoders, layouts, Office packages, the installer
+# scripts, and that manifest.xml is still the production manifest), the build (`tsc --noEmit && vite build`, so this is
 # the typecheck too), and Microsoft's manifest validator — which is the one check
 # here that calls out to a web service and could therefore fail on a bad day
 # without anything in this repo having changed. If it does, read its output:
@@ -55,3 +55,12 @@ jobs:
           dir: dist
           path: /taskpane.html
           root: body
+
+      # The Windows installer builds anywhere makensis does, so a broken .nsi
+      # fails here rather than at release time. (The Mac .pkg needs the signing
+      # identity in Allan's keychain and is built by hand; its scripts are
+      # exercised by test/installer.test.ts above.)
+      - name: Build the Windows installer
+        run: |
+          sudo apt-get install -y --no-install-recommends nsis >/dev/null
+          npm run installer:windows

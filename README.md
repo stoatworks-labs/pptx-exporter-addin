@@ -148,9 +148,72 @@ assets on every push to main, then checks the live origin is serving the build i
 
 Releasing: bump `package.json` (and the lockfile), commit, tag `vX.Y.Z` and push the tag.
 [`release.yml`](.github/workflows/release.yml) checks the tag against `package.json`, validates
-the manifest and attaches it to a GitHub release. The CSP in
+the manifest, builds the Windows installer and attaches both to a GitHub release. Then, on the
+Mac with the signing identity, `npm run installer:mac` and `gh release upload vX.Y.Z
+release/*.pkg` add the Mac installer and uninstaller (see [Installers](#installers)). The CSP in
 [`public/_headers`](public/_headers) lets Office.js load from Microsoft's CDN and lets PowerPoint
 on the web frame the pane; `npm run serve:dist` serves `dist/` with those headers applied.
+
+## Installers
+
+People expect an installer, the kind Slido has. Slido can have one because its PowerPoint
+add-in is the old kind (VBA plus a native library on the Mac, COM on Windows), which PowerPoint
+loads from a folder by design. This is an Office.js add-in, and Microsoft supports exactly two
+ways of installing one: Microsoft Marketplace, and an organisation's admin pushing it from the
+Microsoft 365 admin centre. Everything else is what Microsoft calls sideloading, "not for
+production".
+
+So the installers automate the sideload, and that's all they do. They're the same as Font
+Manager's (`pptx-font-manager-addin`), with the names changed:
+
+| | Mac | Windows |
+| --- | --- | --- |
+| File | `Advanced-Exporter-for-PowerPoint.pkg` | `Advanced-Exporter-for-PowerPoint-Setup.exe` |
+| What it does | copies `manifest.xml` into `~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/` as `stoatworks-advanced-exporter.xml` | copies it to `%LOCALAPPDATA%\Programs\Stoatworks\Advanced Exporter for PowerPoint\` and sets `HKCU\Software\Microsoft\Office\16.0\Wef\Developer`, value `<add-in Id>` = that path |
+| Same as | Microsoft's `office-addin-dev-settings` on a Mac | the same tool on Windows (read from its 4.0.1 source); not the network-share catalog `sideload-windows.ps1` sets up |
+| Rights | your account only, no admin password | your account only, no UAC prompt |
+| PowerPoint open? | Installer asks to quit it (`must-close`) | asks you to close it, then Retry |
+| Uninstall | `Uninstall-Advanced-Exporter-for-PowerPoint.pkg` | Settings ▸ Apps ▸ Installed apps |
+| Signed | Developer ID Installer, notarised and stapled | no: SmartScreen will warn |
+
+Both remove any other copy of the add-in (matched on its `<Id>`, so the sideload script's
+`pptx-exporter.manifest.xml` goes, and Font Manager's file beside it doesn't) before adding
+theirs, and the Mac one refuses politely if PowerPoint isn't installed or has never been opened
+(its sandbox container, where `wef` lives, doesn't exist until then). `scripts/sideload-mac.sh`
+does the same in reverse, so a dev copy never sits beside an installed one. Because the
+manifest only points at the hosted pane, nobody needs to run an installer again unless
+`manifest.xml` itself changes.
+
+```bash
+npm run installer:mac            # sign + notarise from ~/.config/stoatworks/release-signing.env
+npm run installer:mac:unsigned   # quick local build
+npm run installer:windows        # needs makensis (brew install makensis)
+```
+
+What has been run, 2026-10-24, on macOS 26.4.1:
+
+- **Mac, from the command line** (`installer -pkg … -target CurrentUserHomeDirectory`, no
+  password): install swapped the sideload script's copy for `stoatworks-advanced-exporter.xml`,
+  byte for byte the same manifest; Font Manager's manifest beside it was left alone; uninstall
+  removed it; a second uninstall said there was nothing to remove. Payload-free packages leave
+  no receipt. The installation check logged `advanced-exporter: … container=true app=true` to
+  `/var/log/install.log`.
+- **Gatekeeper:** both packages are notarised and stapled, and copies carrying a browser's
+  quarantine flag are accepted (`source=Notarized Developer ID`). The copy that's installed on
+  this Mac now came from one of those, through `installer`.
+- **Not run yet:** the packages in Installer.app, and PowerPoint listing and opening the add-in
+  from the installer's file name. Font Manager's identical packages were run both ways on the
+  same Mac (its README has the details), but these haven't been.
+- **Windows: not run at all.** The Setup.exe compiles with warnings as errors, and its payload
+  unpacks to the identical manifest.
+
+Two build traps, both found building Font Manager's:
+
+- **makensis needs a UTF-8 locale.** With `LANG` unset (or `LC_ALL=C`), Homebrew's 3.12 dies
+  with `std::bad_alloc` before reading a line. `build-exe.sh` sets one.
+- **The .pkg carries `._manifest.xml` and `._postinstall`.** macOS 26 stamps every new file with
+  `com.apple.provenance`, `xattr -c` cannot remove it, and `pkgbuild` archives it as AppleDouble
+  whatever `COPYFILE_DISABLE` says. They're inert: the script only opens `manifest.xml` by name.
 
 ## Layout
 
@@ -167,8 +230,10 @@ src/pdf/             pdf-lib helpers: Unicode text, bookmarks, links
 src/output/          zipping and handing the file over
 player/              the HTML5 presentation player (plain JS, copied into exports)
 src/dev/             the shell-driven harness (development builds only)
+installer/mac/       the .pkg installer and uninstaller: postinstall scripts, distributions, pages
+installer/windows/   the NSIS Setup.exe script, its build script and icon
 fonts-src/           full Noto Sans; scripts/make-pdf-fonts.sh subsets it into src/assets/fonts
-test/                vitest; fixtures/ are python-pptx decks
+test/                vitest; fixtures/ are python-pptx decks; installer.test.ts runs the Mac scripts
 ```
 
 ## Credits

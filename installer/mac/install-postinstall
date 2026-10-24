@@ -1,0 +1,48 @@
+#!/bin/bash
+# postinstall for "Advanced Exporter for PowerPoint.pkg".
+#
+# Puts manifest.xml (beside this script in the package) into PowerPoint's wef
+# folder for the user installing it. That is the same thing Microsoft's own
+# office-addin-dev-settings does on a Mac, and what scripts/sideload-mac.sh does
+# by hand; the package exists so nobody has to find that folder.
+#
+# The package installs "for me only", so Installer runs this as that user. Run
+# from `sudo installer -pkg … -target /` it is root instead, and then it acts
+# for whoever is logged in at the console, never for root.
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")" && pwd)"
+manifest="$here/manifest.xml"
+id="$(sed -n 's:.*<Id>\(.*\)</Id>.*:\1:p' "$manifest" | head -n 1)"
+[ -n "$id" ] || { echo "advanced-exporter: no <Id> in the bundled manifest" >&2; exit 1; }
+
+if [ "$(id -u)" -eq 0 ]; then
+  user="$(stat -f %Su /dev/console)"
+  if [ -z "$user" ] || [ "$user" = "root" ] || [ "$user" = "loginwindow" ]; then
+    echo "advanced-exporter: nobody is logged in at the console to install for" >&2
+    exit 1
+  fi
+  home="$(dscl . -read "/Users/$user" NFSHomeDirectory | awk '{print $2}')"
+  as_user() { sudo -u "$user" "$@"; }
+else
+  home="$HOME"
+  as_user() { "$@"; }
+fi
+
+wef="$home/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef"
+as_user mkdir -p "$wef"
+
+# Two manifests with the same <Id> confuse PowerPoint, so first take out any
+# other copy of this add-in: the sideload script's pptx-exporter.manifest.xml,
+# or an earlier install. Matched on the Id, so other add-ins in the folder
+# (Font Manager's, say) are never touched.
+for f in "$wef"/*.xml; do
+  [ -f "$f" ] || continue
+  if grep -q "<Id>$id</Id>" "$f"; then
+    as_user rm -f "$f"
+    echo "advanced-exporter: removed older copy $f"
+  fi
+done
+
+as_user cp "$manifest" "$wef/stoatworks-advanced-exporter.xml"
+echo "advanced-exporter: installed $wef/stoatworks-advanced-exporter.xml"

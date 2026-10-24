@@ -7,3 +7,6 @@ dist/
 .claude/
 .venv/
 .out/
+
+# Installers built by installer/mac/build-pkg.sh and installer/windows/build-exe.sh
+release/
