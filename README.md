@@ -181,6 +181,7 @@ Manager's (`pptx-font-manager-addin`), with the names changed:
 | Same as | Microsoft's `office-addin-dev-settings` on a Mac | the same tool on Windows (read from its 4.0.1 source); not the network-share catalog `sideload-windows.ps1` sets up |
 | Rights | your account only, no admin password | your account only, no UAC prompt |
 | PowerPoint open? | Installer asks to quit it (`must-close`) | asks you to close it, then Retry |
+| Prompts | macOS asks whether Installer may "access data from other apps": choose Allow | SmartScreen, below |
 | Uninstall | `Uninstall-Advanced-Exporter-for-PowerPoint.pkg` | Settings ▸ Apps ▸ Installed apps |
 | Signed | Developer ID Installer, notarised and stapled | no: SmartScreen will warn |
 
