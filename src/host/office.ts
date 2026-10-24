@@ -118,7 +118,14 @@ export function concatSlices(slices: Uint8Array[]): Uint8Array {
 function readSlices(file: Office.File, onProgress?: (p: FileProgress) => void): Promise<Uint8Array> {
   return new Promise((fulfil, reject) => {
     const { sliceCount } = file
-    const slices: Uint8Array[] = new Array(sliceCount)
+    // Filled as the slices arrive, rather than keeping every slice and copying
+    // them into one at the end: that doubled the peak, and a 460 MB deck of
+    // video in a pane that already held one copy wedged WKWebView at 2.7 GB
+    // (PowerPoint for Mac 16.112.3, 2026-10-24). The slices are only kept if
+    // the file turns out bigger than Office said.
+    let whole: Uint8Array | null = file.size > 0 ? new Uint8Array(file.size) : null
+    let filled = 0
+    const slices: Uint8Array[] = []
     let received = 0
     let settled = false
     const fail = (msg: string) => {
@@ -137,12 +144,20 @@ function readSlices(file: Office.File, onProgress?: (p: FileProgress) => void): 
           return
         }
         const raw = res.value.data as unknown
-        slices[i] = raw instanceof Uint8Array ? raw : Uint8Array.from(raw as number[])
+        const chunk = raw instanceof Uint8Array ? raw : Uint8Array.from(raw as number[])
+        if (whole && filled + chunk.length <= whole.length) whole.set(chunk, filled)
+        else {
+          if (whole) slices.push(whole.subarray(0, filled))
+          whole = null
+          slices.push(chunk)
+        }
+        filled += chunk.length
         received++
         onProgress?.({ done: received, total: sliceCount })
         if (received === sliceCount) {
           settled = true
-          file.closeAsync(() => fulfil(concatSlices(slices)))
+          const bytes = whole ? (filled === whole.length ? whole : whole.subarray(0, filled)) : concatSlices(slices)
+          file.closeAsync(() => fulfil(bytes))
         } else next(i + 1)
       })
     }

@@ -441,7 +441,10 @@ async function onExport(): Promise<void> {
   btn.classList.add('cancel')
   setProgress(0)
   try {
-    // Read the deck again: it may have changed since the pane opened.
+    // Read the deck again: it may have changed since the pane opened. The old
+    // one goes first: a parsed deck holds its whole file, and two copies of a
+    // deck full of video is more than the web view can take.
+    if (!(host instanceof MockHost)) deck = null
     setStatus('Reading the deck from PowerPoint…')
     const bytes = await host.pptx((p) => setStatus(`Reading the deck from PowerPoint… ${p.done}/${p.total}`))
     deck = host instanceof MockHost ? host.deck : parseDeck(bytes, host.documentName() || 'Presentation')
@@ -464,6 +467,7 @@ async function onExport(): Promise<void> {
     showResult(report, outcome)
     setStatus('')
   } catch (e) {
+    if (!deck) void loadDeck() // the read failed after the old deck was let go
     if (e instanceof Cancelled) setStatus('Cancelled.')
     else {
       result.hidden = false
@@ -585,10 +589,14 @@ async function remoteProbe(job: RemoteJob): Promise<unknown> {
   return out
 }
 
-async function remoteExport(job: RemoteJob): Promise<unknown> {
+async function remoteExport(job: RemoteJob, log: (kind: string, data: unknown) => void): Promise<unknown> {
   if (!host) throw new Error('No host.')
   setStatus('Remote export: reading the deck…')
-  const bytes = await host.pptx()
+  if (!(host instanceof MockHost)) deck = null
+  let lastSlice = 0
+  const bytes = await host.pptx((p) => {
+    if (p.done - lastSlice >= 25 || p.done === p.total) log('export:read', `${(lastSlice = p.done)}/${p.total}`)
+  })
   deck = host instanceof MockHost ? host.deck : parseDeck(bytes, host.documentName() || 'Presentation')
   if (host.caps.selection) selected = await host.selectedSlides().catch(() => selected)
   const sel = selectSlides(deck, { scope: job.scope ?? 'all', range: job.range ?? '', section: job.section ?? '', selected, includeHidden: job.includeHidden ?? false })
@@ -603,12 +611,15 @@ async function remoteExport(job: RemoteJob): Promise<unknown> {
   const base = job.base ?? safeName(host.documentName() || deck.title)
   setProgress(0)
   try {
+    let lastLabel = ''
     const report = await runJob(host, deck, bytes, { formats, slides: sel.slides, base, engine }, {
       progress: (f, label) => {
         setProgress(f)
         setStatus(label)
+        if (label !== lastLabel) log('export:progress', (lastLabel = label))
       },
     }, new AbortController().signal)
+    log('export:deliver', { name: report.file?.name, bytes: report.file?.blob.size })
     if (report.file) await deliver(report.file, { sink: true })
     setStatus(`Remote export done: ${report.file?.name ?? 'nothing'}`)
     return { file: report.file?.name, bytes: report.file?.blob.size, files: report.fileCount, seconds: report.seconds, slides: sel.slides.map((x) => x.index + 1), engine, warnings: report.warnings, errors: report.errors }

@@ -29,7 +29,8 @@ export interface RemoteJob {
 export interface RemoteHandlers {
   info(): Promise<unknown>
   probe(job: RemoteJob): Promise<unknown>
-  exportJob(job: RemoteJob): Promise<unknown>
+  /** `log` writes a line to .out/pane.log as the job goes, for finding where a long one stalls. */
+  exportJob(job: RemoteJob, log: (kind: string, data: unknown) => void): Promise<unknown>
 }
 
 export function log(kind: string, data: unknown): void {
@@ -69,7 +70,7 @@ export function startRemote(h: RemoteHandlers): void {
     busy = true
     try {
       log(`${job.op}:start`, job)
-      const out = job.op === 'info' ? await h.info() : job.op === 'probe' ? await h.probe(job) : await h.exportJob(job)
+      const out = job.op === 'info' ? await h.info() : job.op === 'probe' ? await h.probe(job) : await h.exportJob(job, log)
       log(`${job.op}:done`, out)
     } catch (e) {
       log(`${job.op}:failed`, String((e as Error)?.stack ?? e))
