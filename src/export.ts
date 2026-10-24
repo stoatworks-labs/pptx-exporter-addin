@@ -7,6 +7,7 @@ import type { Host } from './host/types'
 import { Bundle, type OutputFile } from './output/bundle'
 import { SlideImages, type Engine } from './render/images'
 import { pageForSlide } from './render/pdfmap'
+import { noteMedia } from './formats/media'
 import { Cancelled, type ExportContext, type FormatDef, type Needs, type Values } from './formats/types'
 
 export interface Job {
@@ -79,6 +80,7 @@ export async function runJob(host: Host, deck: Deck, pptx: Uint8Array, job: Job,
     ctx.progress(0)
     try {
       await def.run(ctx, values)
+      noteMedia(ctx, def)
     } catch (e) {
       if (e instanceof Cancelled || signal.aborted) throw new Cancelled()
       errors.push({ format: def.label, message: (e as Error)?.message ?? String(e) })

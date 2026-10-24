@@ -238,9 +238,17 @@ describe('html5 format', () => {
   it('warns about linked media rather than pretending', async () => {
     const deck = parseDeck(fixture('sample-16x9.pptx'))
     const v = deck.slides[8].shapes.find((s) => s.kind === 'media')!
-    v.media = { kind: 'video', external: 'https://example.com/clip.mp4' }
+    v.media = { kind: 'video', external: 'file:///Users/someone/Movies/clip.mp4' }
     const { warnings } = await run(html5, { image: 'png' }, { deck, keep: [8] })
-    expect(warnings).toEqual([expect.stringMatching(/linked rather than embedded \(https:\/\/example\.com\/clip\.mp4\)/)])
+    expect(warnings).toEqual([expect.stringMatching(/linked rather than embedded \(file:\/\/\/Users\/someone\/Movies\/clip\.mp4\)/)])
+  })
+
+  it('calls an online film online, not linked', async () => {
+    const deck = parseDeck(fixture('sample-16x9.pptx'))
+    const v = deck.slides[8].shapes.find((s) => s.kind === 'media')!
+    v.media = { kind: 'video', external: 'https://www.youtube.com/embed/abc?feature=oembed' }
+    const { warnings } = await run(html5, { image: 'png' }, { deck, keep: [8] })
+    expect(warnings).toEqual([expect.stringMatching(/is an online video \(YouTube\), not a file in the deck/)])
   })
 })
 

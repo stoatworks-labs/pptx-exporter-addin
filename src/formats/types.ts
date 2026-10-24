@@ -52,6 +52,16 @@ export interface Needs {
   exportSlide?: boolean
 }
 
+/**
+ * What a format does with the deck's video and sound:
+ * - `still`: pictures of slides (or none), so nothing plays;
+ * - `kept`: the deck's own media goes with it (PowerPoint copies);
+ * - `plays`: it plays embedded media itself and says what it couldn't (HTML5);
+ * - `files`: it is the media files (Video bundle);
+ * - `none`: text only, where media has nothing to lose.
+ */
+export type MediaHandling = 'still' | 'kept' | 'plays' | 'files' | 'none'
+
 export interface FormatDef {
   id: string
   label: string
@@ -66,6 +76,8 @@ export interface FormatDef {
   needsFor?: (v: Values) => Needs
   /** A reason this format can't run in this web view, or null. Checked once. */
   unavailable?: () => Promise<string | null>
+  /** What becomes of the deck's video and sound. The runner turns it into one note (formats/media.ts). */
+  media: MediaHandling
   run(ctx: ExportContext, v: Values): Promise<void>
 }
 

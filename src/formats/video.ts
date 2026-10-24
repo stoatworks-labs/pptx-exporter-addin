@@ -429,12 +429,11 @@ function messageOf(e: unknown): string {
   return e instanceof Error ? e.message || e.name : String(e)
 }
 
-/** Slides whose animations or videos won't appear, said once rather than discovered. */
+/** Slides whose animations won't appear, said once rather than discovered. (Video
+ * and sound get the runner's media note.) */
 function warnStill(ctx: ExportContext): void {
   const animated = ctx.slides.filter((s) => s.hasAnimations).map((s) => s.index + 1)
   if (animated.length) ctx.warn(`Slide${animated.length > 1 ? 's' : ''} ${animated.join(', ')} ${animated.length > 1 ? 'have' : 'has'} animations. They don't play — each slide appears as PowerPoint draws it at rest.`)
-  const media = ctx.slides.filter((s) => s.shapes.some((sh) => sh.kind === 'media')).map((s) => s.index + 1)
-  if (media.length) ctx.warn(`Slide${media.length > 1 ? 's' : ''} ${media.join(', ')} ${media.length > 1 ? 'have' : 'has'} video or sound. It doesn't play — you get the poster frame, and silence.`)
 }
 
 async function encodeVideo(ctx: ExportContext, v: Values, container: Container): Promise<void> {
@@ -684,6 +683,7 @@ export const mp4: FormatDef = {
   blurb: 'H.264, HEVC or AV1 video, timed by the deck or by you. Silent, and each slide as it rests — animations don’t play.',
   ext: '.mp4',
   needs: { images: true },
+  media: 'still',
   options: videoOptions('mp4'),
   unavailable: videoUnavailable('mp4'),
   run: (ctx, v) => encodeVideo(ctx, v, 'mp4'),
@@ -696,6 +696,7 @@ export const webm: FormatDef = {
   blurb: 'VP9, VP8 or AV1 for the web. Silent, and each slide as it rests — animations don’t play.',
   ext: '.webm',
   needs: { images: true },
+  media: 'still',
   options: videoOptions('webm'),
   unavailable: videoUnavailable('webm'),
   run: (ctx, v) => encodeVideo(ctx, v, 'webm'),
@@ -720,6 +721,7 @@ export const animatedGif: FormatDef = {
   blurb: 'The deck as a looping GIF for chat, email and READMEs. 256 colours at most, and no sound, naturally.',
   ext: '.gif',
   needs: { images: true },
+  media: 'still',
   options: [
     { key: 'width', label: 'Width', type: 'number', min: 16, max: 1920, step: 1, unit: 'px', default: 960 },
     secondsOption,

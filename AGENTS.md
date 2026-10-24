@@ -27,12 +27,21 @@ to run it; this is what not to break.
   **Never assume page n is slide n** (the lesson Presentation Converter exists for).
 - Older PowerPoint without 1.8 falls back to rasterising that PDF with pdf.js. Keep that path
   working: it is the only one Office LTSC gets.
+- **Video and sound come from the font manager's scanner**, vendored by git subtree at
+  `vendor/pptx-font-manager` and imported through the `@fm` alias (`src/deck/media.ts`). It sees
+  what parse.ts doesn't: layout and master media, online and linked clips, trims and playback
+  settings, codecs. Never edit the vendored tree; change it in stoatworks-labs/pptx-font-manager
+  and `npm run core:pull`.
 
 ## Formats
 
 - A format is a `FormatDef` (`src/formats/types.ts`): an option schema the pane renders
   generically, and `run(ctx, values)`. **Formats never call Office.js** — only the context — so
   every format runs against `MockHost` in a browser and most run under vitest.
+- **Every format declares `media`** (`still`, `kept`, `plays`, `files` or `none`), and the runner
+  turns that into one note about the deck's video and sound on the exported slides
+  (`noteMedia`). A format must never lose a video without saying so; TypeScript won't let a new
+  format leave the field out.
 - Option values are saved in presets. Renaming an option key or a format id silently drops
   people's saved settings; `normalise()` copes, but say so in the changelog.
 - Multi-file exports are zipped as they are produced (`src/output/bundle.ts`); pictures and video

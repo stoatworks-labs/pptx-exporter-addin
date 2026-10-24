@@ -375,7 +375,13 @@ function parseSlide(ctx: Ctx, part: string, sldId: number, index: number): Slide
     notes,
     notesText,
     transition: parseTransition(root),
-    hasAnimations: !!first(kid(root, 'timing'), 'par'),
+    // Every animation effect's node carries a presetClass (entr, exit, emph,
+    // path, verb). Media playback has a timing node too, marked mediacall or
+    // not marked at all, and is no animation.
+    hasAnimations: all(kid(root, 'timing'), 'cTn').some((c) => {
+      const pc = c.getAttribute('presetClass')
+      return !!pc && pc !== 'mediacall'
+    }),
   }
 }
 
@@ -479,13 +485,15 @@ function parseShape(ctx: Ctx, rels: Map<string, Rel>, el: Element, layout: Place
       shape.image = { part: imgRel.target, contentType: ctx.pkg.contentType(imgRel.target) ?? 'application/octet-stream' } satisfies ImageRef
     }
     const nvPr = kid(nv, 'nvPr')
-    const vf = kid(nvPr, 'videoFile')
-    const af = kid(nvPr, 'audioFile')
+    // quickTimeFile and wavAudioFile are the older spellings, still written
+    // for some files (a WAV sound embeds through r:embed, not r:link).
+    const vf = kid(nvPr, 'videoFile') ?? kid(nvPr, 'quickTimeFile')
+    const af = kid(nvPr, 'audioFile') ?? kid(nvPr, 'wavAudioFile')
     if (vf || af) {
       const media: MediaRef = { kind: vf ? 'video' : 'audio', poster: shape.image?.part }
       // PowerPoint 2010+ embeds via p14:media r:embed; older decks link only.
       const p14 = all(nvPr, 'media').find((m) => rAttr(m, 'embed'))
-      const embedId = p14 ? rAttr(p14, 'embed') : null
+      const embedId = p14 ? rAttr(p14, 'embed') : rAttr(vf ?? af, 'embed')
       const linkId = rAttr(vf ?? af, 'link')
       const er = embedId ? rels.get(embedId) : undefined
       const lr = linkId ? rels.get(linkId) : undefined

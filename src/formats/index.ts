@@ -3,6 +3,7 @@
 import { DOCUMENT_FORMATS } from './documents'
 import { IMAGE_FORMATS } from './images'
 import { LATEX_FORMATS } from './latex'
+import { mediaBundle } from './media'
 import { OFFICE_FORMATS } from './office'
 import { TEXT_FORMATS } from './text'
 import type { FormatDef } from './types'
@@ -14,6 +15,7 @@ export const FORMATS: FormatDef[] = [
   ...DOCUMENT_FORMATS,
   ...WEB_FORMATS,
   ...VIDEO_FORMATS,
+  mediaBundle,
   ...LATEX_FORMATS,
   ...TEXT_FORMATS,
   ...OFFICE_FORMATS,

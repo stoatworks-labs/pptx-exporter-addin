@@ -25,6 +25,7 @@ export const pdfVector: FormatDef = {
   blurb: "PowerPoint's own PDF: sharp at any zoom, text selectable. Trimmed to your slide range, or one file per slide.",
   ext: '.pdf',
   needs: { pdf: true },
+  media: 'still',
   options: [
     { key: 'split', label: 'One PDF per slide', type: 'toggle', default: false },
     { ...nameOption('{deck}-{nn}'), when: (v) => !!v.split },
@@ -54,6 +55,7 @@ export const pdfPictures: FormatDef = {
   blurb: 'Every slide as a picture at the resolution you choose. Hidden slides included, size under your control, looks identical everywhere.',
   ext: '.pdf',
   needs: { images: true },
+  media: 'still',
   options: [
     ...pictureOptions(150),
     { key: 'links', label: 'Keep links clickable', type: 'toggle', default: true },
@@ -153,6 +155,7 @@ export const handouts: FormatDef = {
   blurb: 'Several slides to a page — 1, 2, 3 with lines for notes, 4, 6 or 9 — as PowerPoint prints them, minus the print dialog.',
   ext: '.pdf',
   needs: {},
+  media: 'still',
   needsFor: drawnFrom,
   options: [
     {
@@ -179,6 +182,7 @@ export const notesPages: FormatDef = {
   blurb: 'One slide a page with its speaker notes underneath, running onto more pages when the notes do.',
   ext: '.pdf',
   needs: {},
+  media: 'still',
   needsFor: drawnFrom,
   options: [
     ...pageOptions,

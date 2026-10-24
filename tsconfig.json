@@ -12,8 +12,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "allowJs": false
+    "allowJs": false,
+    "paths": {
+      "@fm/*": ["./vendor/pptx-font-manager/src/*"]
+    }
   },
   "include": ["src", "test", "vite.config.ts", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules", "vendor"]
 }

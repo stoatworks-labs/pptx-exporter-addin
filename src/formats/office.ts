@@ -41,13 +41,12 @@ async function pictures(ctx: ExportContext, f: Frame, v: Values): Promise<Pictur
   return out
 }
 
-/** A picture is a picture: say once what doesn't survive being one. */
+/** A picture is a picture: say once what doesn't survive being one. (Video and
+ * sound get the runner's media note.) */
 function warnFlattened(ctx: ExportContext): void {
   const n = (ss: Slide[]) => `slide${ss.length > 1 ? 's' : ''} ${ss.map((s) => s.index + 1).join(', ')}`
   const animated = ctx.slides.filter((s) => s.hasAnimations)
-  const media = ctx.slides.filter((s) => s.shapes.some((sh) => sh.kind === 'media'))
   if (animated.length) ctx.warn(`Animations don't survive as pictures (${n(animated)}): each slide shows as PowerPoint draws it at rest.`)
-  if (media.length) ctx.warn(`Video and sound aren't carried over (${n(media)}): only the poster frame is in the picture.`)
 }
 
 export const pptxCopy: FormatDef = {
@@ -57,6 +56,7 @@ export const pptxCopy: FormatDef = {
   blurb: 'The deck itself, as a .pptx, a show that opens straight into presenting, or a template — trimmed to the slides you picked.',
   ext: '.pptx / .ppsx / .potx',
   needs: {},
+  media: 'kept',
   options: [
     {
       key: 'type', label: 'Save as', type: 'select', default: 'pptx',
@@ -104,6 +104,7 @@ export const splitSlides: FormatDef = {
   blurb: 'Each slide as a .pptx of its own, masters, notes and media included. PowerPoint does the cutting.',
   ext: '.pptx',
   needs: { exportSlide: true },
+  media: 'kept',
   options: [nameOption('{deck}-{nn}')],
   async run(ctx, v) {
     await eachSlide(ctx, async (s, i) => {
@@ -119,6 +120,7 @@ export const flattenedPptx: FormatDef = {
   blurb: 'Every slide as one picture in a fresh deck, notes, transitions and links kept — it plays the same on a machine without your fonts.',
   ext: '.pptx',
   needs: { images: true },
+  media: 'still',
   options: [
     ...sizeOptions({ size: '1080p', noFit: true }),
     ...pictureOptions(),
@@ -144,6 +146,7 @@ export const odp: FormatDef = {
   blurb: 'An .odp of slide pictures with the speaker notes, for LibreOffice and anywhere that asks for ODF.',
   ext: '.odp',
   needs: { images: true },
+  media: 'still',
   options: [
     ...sizeOptions({ size: '1080p', noFit: true }),
     ...pictureOptions(),
@@ -164,6 +167,7 @@ export const docxNotes: FormatDef = {
   blurb: 'PowerPoint’s “Create Handouts in Word”: slide pictures with the speaker notes, or with lines to write on.',
   ext: '.docx',
   needs: { images: true },
+  media: 'still',
   options: [
     {
       key: 'layout', label: 'Layout', type: 'select', default: 'below',

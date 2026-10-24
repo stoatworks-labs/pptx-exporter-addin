@@ -22,7 +22,7 @@ happens in the pane. Nothing is uploaded.
 | Images | PNG, JPEG, WebP, AVIF, TIFF (one per slide or multi-page; LZW, Deflate or PackBits), BMP, TGA, GIF, SVG with clickable links, contact sheet |
 | Documents | PowerPoint's vector PDF (trimmed to a range or split per slide), picture PDF (keeps hidden slides and links), handouts 1/2/3/4/6/9 to a page, notes pages, Word notes document, OpenDocument |
 | Web | HTML5 presentation with transitions, presenter view, links and the deck's own video; reveal.js; a scrolling page |
-| Video | MP4 (H.264, HEVC, AV1) and WebM (VP9, VP8, AV1) with the deck's timings and captions from the notes; animated GIF |
+| Video | MP4 (H.264, HEVC, AV1) and WebM (VP9, VP8, AV1) with the deck's timings and captions from the notes; animated GIF; the deck's own video and sound files in a .zip (Video bundle) |
 | Text | LaTeX Beamer (the slides as drawn, or rebuilt as editable LaTeX) or a LaTeX article with notes; Markdown, Marp, Pandoc/Quarto; an outline PowerPoint reads back in (RTF), OPML or text; speaker notes; CSV; JSON |
 | PowerPoint | A copy as PPTX, PPSX or POTX, trimmed and cleaned (notes, comments, hidden slides, names); one file per slide; a flattened picture deck |
 
@@ -50,6 +50,11 @@ All builds, checksums and release notes: [github.com/stoatworks-labs/pptx-export
   seconds. Every file was checked with something other than the add-in (see
   [Testing](#testing)), and PowerPoint and Word opened the generated Office files without a
   repair prompt.
+- **Video bundle and media notes: not in PowerPoint yet.** Run in a Chromium browser on a
+  460 MB deck (files byte for byte, stored, `MEDIA.txt` right, ffprobe reads them). In
+  PowerPoint for Mac the first attempt wedged the pane at 2.7 GB while reading the deck for the
+  second time; reading it into one buffer and letting the old copy go first should halve that,
+  and hasn't been run there yet.
 - **Windows and the web: untested.** Both are in the manifest's host list. Nothing here has run
   on them, because no machine here has desktop PowerPoint for Windows.
 - **Hosted** at <https://pptx-exporter-addin.stoatworks-labs.com> since 2026-10-20. The
@@ -87,6 +92,9 @@ Measured in PowerPoint for Mac 16.112.3 on 2026-10-20:
   the pane.
 - **A 16384 × 9216 canvas works in the pane** (made, filled, read back and encoded as PNG), so
   that's the size cap, not the 8K I'd guessed.
+- **PowerPoint hands a deck over at about 1 MB a second.** `getFileAsync` took 385.6 s for a
+  461 MB deck full of video (111 slices of 4 MB: 4.3 s to the first, then about 3.5 s each).
+  Every export starts by reading the deck, so a big one costs minutes before any format runs.
 - **pdf-lib's font subsetting blanks most of Noto Sans.** The text still extracts, but poppler
   draws nothing. The PDF fonts are subset at build time with fontTools instead and embedded
   whole, about 90 KB a PDF.
@@ -230,6 +238,8 @@ src/pdf/             pdf-lib helpers: Unicode text, bookmarks, links
 src/output/          zipping and handing the file over
 player/              the HTML5 presentation player (plain JS, copied into exports)
 src/dev/             the shell-driven harness (development builds only)
+src/deck/media.ts    video and sound, through the font manager's scanner
+vendor/pptx-font-manager/  that scanner and MEDIA.txt, via git subtree (npm run core:pull); don't edit
 installer/mac/       the .pkg installer and uninstaller: postinstall scripts, distributions, pages
 installer/windows/   the NSIS Setup.exe script, its build script and icon
 fonts-src/           full Noto Sans; scripts/make-pdf-fonts.sh subsets it into src/assets/fonts
@@ -245,7 +255,8 @@ PDFs are written with [pdf-lib](https://github.com/Hopding/pdf-lib) (MIT) and re
 [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) and
 [webm-muxer](https://github.com/Vanilagy/webm-muxer) (MIT), zips
 [fflate](https://github.com/101arrowz/fflate) (MIT), and the reveal.js export
-[reveal.js](https://revealjs.com) (MIT). PDF text is set in
+[reveal.js](https://revealjs.com) (MIT). Video and sound are found and described by
+[pptx-font-manager](https://github.com/stoatworks-labs/pptx-font-manager)'s media scanner (MIT), vendored. PDF text is set in
 [Noto Sans](https://notofonts.github.io) (SIL Open Font Licence, `src/assets/fonts/OFL.txt`).
 
 MIT licence.

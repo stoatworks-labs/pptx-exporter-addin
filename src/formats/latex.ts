@@ -74,6 +74,7 @@ export const latex: FormatDef = {
   blurb: 'A Beamer deck that compiles: either the slides exactly as drawn, or rebuilt as editable LaTeX. Or an article with the notes.',
   ext: '.tex + files',
   needs: {},
+  media: 'still',
   needsFor: (v) => (v.mode === 'pictures' && v.pictures === 'pdf' ? { pdf: true, images: true } : { images: true }),
   options: [
     {

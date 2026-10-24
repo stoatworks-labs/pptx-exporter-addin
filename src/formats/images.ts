@@ -23,6 +23,7 @@ function imageDef(id: string, label: string, ext: string, blurb: string, extra: 
     blurb,
     ext: `.${ext}`,
     needs: { images: true },
+    media: 'still',
     options: [...sizeOptions(), ...extra, nameOption('{deck}-{nn}')],
   }
 }
@@ -138,6 +139,7 @@ export const svg: FormatDef = {
   blurb: 'The slide as a picture inside an SVG, with its links still clickable and its text still findable.',
   ext: '.svg',
   needs: { images: true },
+  media: 'still',
   options: [
     ...sizeOptions({ noFit: true }),
     {
@@ -204,6 +206,7 @@ export const contactSheet: FormatDef = {
   blurb: 'Every slide as a thumbnail on one big picture — for running orders and sign-off.',
   ext: '.png / .jpg',
   needs: { images: true },
+  media: 'still',
   options: [
     { key: 'columns', label: 'Columns', type: 'number', min: 1, max: 12, step: 1, default: 4 },
     { key: 'thumb', label: 'Thumbnail width', type: 'number', min: 80, max: 1920, step: 10, unit: 'px', default: 480 },

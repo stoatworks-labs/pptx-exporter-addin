@@ -4,6 +4,9 @@ import { join, resolve, basename } from 'node:path'
 import { readFileSync, existsSync, mkdirSync, createWriteStream, appendFileSync } from 'node:fs'
 
 const ROOT = import.meta.dirname
+// The font manager's media scanner, vendored by git subtree (`npm run
+// core:pull`) and imported unchanged through this alias.
+const FM = resolve(ROOT, 'vendor/pptx-font-manager/src')
 
 // office-addin-dev-certs writes a trusted localhost cert here; Office requires
 // HTTPS even in development.
@@ -113,6 +116,7 @@ function devRoutes(): Plugin {
 }
 
 export default defineConfig({
+  resolve: { alias: { '@fm': FM } },
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [shipManifest(), devRoutes()],
   // jSquash's codecs find their .wasm next to their own module; pre-bundling

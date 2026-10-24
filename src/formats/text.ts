@@ -90,6 +90,7 @@ export const markdown: FormatDef = {
   blurb: 'Plain Markdown for notes and wikis, Marp or Pandoc/Quarto slides — the words rebuilt, the slide pictures alongside, or both.',
   ext: '.md + images',
   needs: { images: true },
+  media: 'still',
   options: [
     {
       key: 'flavour', label: 'Flavour', type: 'select', default: 'gfm',
@@ -318,6 +319,7 @@ export const outline: FormatDef = {
   blurb: "The deck's words as an outline: tab-indented text, RTF that PowerPoint reads straight back in, or OPML for outliners.",
   ext: '.txt / .rtf / .opml',
   needs: {},
+  media: 'none',
   options: [
     {
       key: 'as', label: 'Save as', type: 'select', default: 'rtf',
@@ -345,6 +347,7 @@ export const speakerNotes: FormatDef = {
   blurb: 'Just the notes, slide by slide — a script to rehearse from, or hand to the autocue.',
   ext: '.txt / .md',
   needs: {},
+  media: 'none',
   options: [
     { key: 'as', label: 'Save as', type: 'select', default: 'txt', choices: [{ value: 'txt', label: 'Plain text' }, { value: 'md', label: 'Markdown' }] },
     { key: 'titles', label: 'Slide numbers and titles', type: 'toggle', default: true },
@@ -385,6 +388,7 @@ export const csv: FormatDef = {
   blurb: 'One row per slide — number, title, section, hidden, timings, word count, notes — for a running order or a spreadsheet.',
   ext: '.csv',
   needs: {},
+  media: 'none',
   options: [
     { key: 'sep', label: 'Separator', type: 'select', default: ',', choices: [{ value: ',', label: 'Comma' }, { value: ';', label: 'Semicolon (European Excel)' }, { value: '\t', label: 'Tab' }] },
     { key: 'notes', label: 'Notes column', type: 'toggle', default: true },
@@ -421,6 +425,7 @@ export const json: FormatDef = {
   blurb: 'Everything the exporter read from the deck — text with formatting, notes, links, geometry, transitions — for scripts.',
   ext: '.json',
   needs: {},
+  media: 'none',
   options: [
     { key: 'geometry', label: 'Shape positions', type: 'toggle', default: true },
     { key: 'rich', label: 'Formatting (runs, levels)', type: 'toggle', default: true },

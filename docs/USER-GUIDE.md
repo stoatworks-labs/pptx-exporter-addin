@@ -25,6 +25,14 @@ options, press **Export**, and PowerPoint asks where to save the file.
 > disk, and its presenter view was only tried in one window. The pdfLaTeX output hasn't been
 > compiled (only XeLaTeX), and the transitions and links in the flattened deck were checked in
 > its XML, not by playing it.
+>
+> **Video bundle and the media notes (2026-10-24), not yet released:** run in a Chromium browser
+> against a 460 MB deck of three films, a WAV, a trim and a hidden slide reusing a film. The four
+> files came out byte for byte the same as the originals, stored rather than deflated, with the
+> right `MEDIA.txt`; `unzip -t` and ffprobe read them all. In PowerPoint for Mac the same deck
+> was read through Office.js (the timing above), but the first export there wedged the pane at
+> 2.7 GB on its second read of the deck, and the change that halves that peak hasn't been run in
+> PowerPoint yet.
 
 ## Install
 
@@ -85,10 +93,39 @@ PowerPoint's largest picture scaled up, and the export notes say so.
 - **Animations.** Every picture-based format shows a slide as it looks with all its builds
   finished. Video and GIF are slides with transitions between them, not a recording of the
   slide show.
-- **Sound, and video playing.** Video exports show an embedded video's poster frame. The HTML5
-  presentation is the exception: it plays the deck's embedded video and audio in place.
+- **Video and sound playing**, except in the HTML5 presentation. See below.
 - **Hidden slides in PowerPoint's PDF.** PowerPoint leaves them out of its PDF, so the vector
   PDF formats can't include them. **PDF — pictures** can.
+
+### Video and sound
+
+Every export says in its notes what it did with the video and sound on the slides it exported.
+In short:
+
+| Export | Video and sound |
+| --- | --- |
+| **Video bundle** | The files themselves, exactly as embedded, in a `.zip` with `MEDIA.txt` |
+| **Web presentation (HTML5)** | Embedded video and sound play in place when clicked. PowerPoint's trims, looping, volume and "start automatically" don't come along, and nor does video on a layout; the notes name each one. |
+| **PowerPoint file**, **one file per slide** | Kept as they are, trims and settings included |
+| Everything else | PowerPoint's picture of each, its poster frame. Nothing plays, and MP4, WebM and GIF are silent. |
+
+Online video (YouTube and friends) and video linked from somebody's disk were never in the deck
+file, so no export can bring them along. The notes list them anyway, and so does `MEDIA.txt`, so
+you find out before the show rather than during it.
+
+**Video bundle** saves the deck's own video and sound files, named after their slide and shape
+(`Slide 2 - Intro film.mp4`), from the exported slides or the whole deck. `MEDIA.txt` beside
+them says, for each file, which slides play it, how big it is, what's in it, whether PowerPoint
+for Windows and for Mac can play it, and how PowerPoint plays it: starting by itself or on a
+click, looping, volume, trims. A clip trimmed in PowerPoint is saved whole, because the trim is
+a PowerPoint setting rather than part of the file, so `MEDIA.txt` gives the trim points for
+whatever plays it next. Video on a slide's layout or master comes along with every slide that
+shows it.
+
+**A deck full of video is slow to read.** Office.js hands the add-in the deck at about a
+megabyte a second: a 460 MB deck took six and a half minutes in PowerPoint for Mac 16.112.3,
+about three and a half seconds for each four-megabyte slice. That happens at the start of every export,
+whatever the format, so it isn't the bundle being slow; it's just where you notice.
 
 ## Formats and their options
 
@@ -485,6 +522,16 @@ The deck as a looping GIF for chat, email and READMEs. 256 colours at most, and 
 | Dither | on | Smooths gradients into dots instead of bands. |
 | Loop | **Forever** · Play once · Three times |  |
 | Crossfade frames | 0–12, default **0** | Frames blended between slides, 50 ms each. Every one is a whole picture, so they add up. |
+
+#### Video bundle (`.zip`)
+
+The deck’s own video and sound files, exactly as embedded, in a .zip with MEDIA.txt: which slide each plays on, and how PowerPoint plays it.
+
+| Option | Choices | Notes |
+| --- | --- | --- |
+| Files | **Those on the exported slides** · Everything in the deck | Everything means hidden slides and slides you didn’t pick as well. Video on a layout or master comes along with any slide that shows it. |
+| Sound files too | on | Off saves the video and leaves out the sound. |
+| File names | **After slide and shape (Slide 2 - Intro film.mp4)** · As stored in the deck (media1.mp4) |  |
 
 ### LaTeX, Markdown & data
 

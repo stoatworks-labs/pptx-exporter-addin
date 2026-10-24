@@ -13,7 +13,9 @@ export interface OutputFile {
   blob: Blob
 }
 
-const STORED = /\.(png|jpe?g|webp|avif|gif|mp4|webm|mov|m4v|mp3|m4a|zip|pptx|ppsx|potx|odp|docx|pdf|woff2?)$/i
+// Media as decks hold it is in here too (the Video bundle): deflating a film or
+// a WAV gains little and takes a long time.
+const STORED = /\.(png|jpe?g|webp|avif|gif|mp4|webm|mov|qt|m4v|mkv|avi|wmv|asf|mpe?g|m2ts|mts|flv|mp3|m4a|aac|wav|aiff?|flac|ogg|oga|opus|wma|zip|pptx|ppsx|potx|odp|docx|pdf|woff2?)$/i
 
 export class Bundle {
   private first?: { path: string; data: Uint8Array }

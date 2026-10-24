@@ -16,6 +16,7 @@ import { xmlSafe } from '../lib/xml'
 import { canEncodeNatively, encodeNative, rgba } from '../render/canvas'
 import type { Frame } from '../render/sizing'
 import { eachSlide, frameFromValues, sizeOptions } from './common'
+import { classifyUrl } from '@fm/core/media'
 import { allLinks, hotspots, mediaSpots, safeUrl, type Box, type MediaSpot } from './overlay'
 import { checkCancel, type ExportContext, type FormatDef, type OptionDef, type Values } from './types'
 
@@ -439,7 +440,11 @@ function mediaWriter(ctx: ExportContext, single: boolean): NonNullable<DeckDataI
     const m = spot.media
     const what = `Slide ${slide.index + 1}: the ${m.kind} “${spot.label}”`
     if (!m.part) {
-      ctx.warn(`${what} is linked rather than embedded${m.external ? ` (${m.external})` : ''}, so it isn't in the deck to copy. Left out.`)
+      if (m.external && /^https?:/i.test(m.external)) {
+        ctx.warn(`${what} is an online video (${classifyUrl(m.external).label}), not a file in the deck, so there's nothing to copy. Left out.`)
+      } else {
+        ctx.warn(`${what} is linked rather than embedded${m.external ? ` (${m.external})` : ''}, so it isn't in the deck to copy. Left out.`)
+      }
       return null
     }
     const r = put(m.part, false)
@@ -523,6 +528,7 @@ export const html5: FormatDef = {
   blurb: 'Plays in any browser, even straight from disk: keys, clicks and swipes, working links and video, a presenter view with your notes.',
   ext: '.html',
   needs: { images: true },
+  media: 'plays',
   options: [
     packagingOption(`A folder is lighter and starts quicker. One file is easier to email, but every picture rides inside it as text, about a third bigger, and video and audio only go in while they total ${INLINE_MEDIA_CAP / 1048576} MB or less.`),
     ...pictureOptions(),
@@ -777,6 +783,7 @@ export const reveal: FormatDef = {
   blurb: 'A reveal.js presentation: each slide’s picture as its background, links still clickable, notes in reveal’s speaker view.',
   ext: '.html',
   needs: { images: true },
+  media: 'still',
   options: [
     {
       key: 'source', label: 'reveal.js from', type: 'select', default: 'cdn',
@@ -920,6 +927,7 @@ export const scrollPage: FormatDef = {
   blurb: 'Every slide down one long page with its notes underneath. Reads on a phone; prints a slide a page.',
   ext: '.html',
   needs: { images: true },
+  media: 'still',
   options: [
     packagingOption('A folder is lighter and the pictures load as you scroll. One file is easier to send on, but every picture rides inside it as text, about a third bigger.'),
     ...pictureOptions(),

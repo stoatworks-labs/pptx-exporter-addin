@@ -26,7 +26,8 @@
     "fonts": "bash scripts/make-pdf-fonts.sh",
     "icons": ".venv/bin/python scripts/make-icons.py",
     "check:office": "SAMPLES_DIR=.out/office vitest run test/office.test.ts && .venv/bin/python scripts/check-office.py .out/office",
-    "pane": "bash scripts/pane.sh"
+    "pane": "bash scripts/pane.sh",
+    "core:pull": "git subtree pull --prefix=vendor/pptx-font-manager https://github.com/stoatworks-labs/pptx-font-manager.git main --squash"
   },
   "dependencies": {
     "@jsquash/avif": "^2.1.1",
