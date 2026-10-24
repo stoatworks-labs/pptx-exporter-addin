@@ -70,6 +70,14 @@ to run it; this is what not to break.
 - **The Office dev certificate lasts 30 days.** When it lapses PowerPoint shows "isn't signed by
   a valid security certificate" in the pane. Renewing it (`npm run certs`) needs Allan's
   password — it trusts a CA — so ask, don't work round it.
+- **A deck full of video is near the pane's limit.** Office.js on Mac hands the deck over in 4 MB
+  slices at about 1 MB/s, and the pane reached ~7 GB reading and exporting a 460 MB deck (an
+  earlier version, holding the previous deck and every slice, wedged WKWebView at 2.7 GB). Never
+  keep a second copy of the deck's bytes alive: `readSlices` fills one buffer, and export drops
+  the old deck before reading.
+- **PowerPoint writes a trimmed clip's `videoFile` link as an External relationship to `NULL`**
+  (the file is reached through `p14:media`). The scanner skips it; anything new that reads media
+  rels must too.
 - Quitting PowerPoint to load a sideloaded manifest closes Allan's decks; ask first. A deck
   opened from another app lives in PowerPoint's own tmp folder and is gone after a quit.
 

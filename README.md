@@ -50,11 +50,11 @@ All builds, checksums and release notes: [github.com/stoatworks-labs/pptx-export
   seconds. Every file was checked with something other than the add-in (see
   [Testing](#testing)), and PowerPoint and Word opened the generated Office files without a
   repair prompt.
-- **Video bundle and media notes: not in PowerPoint yet.** Run in a Chromium browser on a
-  460 MB deck (files byte for byte, stored, `MEDIA.txt` right, ffprobe reads them). In
-  PowerPoint for Mac the first attempt wedged the pane at 2.7 GB while reading the deck for the
-  second time; reading it into one buffer and letting the old copy go first should halve that,
-  and hasn't been run there yet.
+- **Video bundle and media notes: checked on Mac, unreleased.** Exported inside PowerPoint for
+  Mac 16.112.3 from a 460 MB deck of video (with PNG and HTML5): the files came out of
+  PowerPoint's own copy of the deck byte for byte, stored, and ffprobe reads them. That size is
+  near the pane's limit: it reached about 7 GB, and the first attempt, before reading the deck
+  into one buffer and letting the old copy go first, wedged WKWebView at 2.7 GB.
 - **Windows and the web: untested.** Both are in the manifest's host list. Nothing here has run
   on them, because no machine here has desktop PowerPoint for Windows.
 - **Hosted** at <https://pptx-exporter-addin.stoatworks-labs.com> since 2026-10-20. The
@@ -210,9 +210,14 @@ What has been run, 2026-10-24, on macOS 26.4.1:
 - **Gatekeeper:** both packages are notarised and stapled, and copies carrying a browser's
   quarantine flag are accepted (`source=Notarized Developer ID`). The copy that's installed on
   this Mac now came from one of those, through `installer`.
-- **Not run yet:** the packages in Installer.app, and PowerPoint listing and opening the add-in
-  from the installer's file name. Font Manager's identical packages were run both ways on the
-  same Mac (its README has the details), but these haven't been.
+- **Mac, in Installer.app**, from copies carrying a browser's quarantine flag (rebuilt with the
+  Allow note): Gatekeeper accepts both and each goes straight to a home-folder install with no
+  password. With PowerPoint open, clicking Install in the uninstaller quit PowerPoint and removed
+  the dev sideload's file (same Id); Font Manager's was left alone. Both runs raised macOS's
+  "Installer would like to access data from other apps" (TCC `SystemPolicyAppData`), and the
+  install waited on it until Allow was chosen; a grant from one run didn't carry over to the next.
+- **PowerPoint after the GUI install:** Home ▸ Add-ins lists Advanced Exporter under Developer
+  Add-ins beside Font Manager, and it opens the hosted pane (v0.1.0), which reads the deck.
 - **Windows: not run at all.** The Setup.exe compiles with warnings as errors, and its payload
   unpacks to the identical manifest.
 

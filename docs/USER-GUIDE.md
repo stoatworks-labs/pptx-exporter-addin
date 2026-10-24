@@ -26,13 +26,14 @@ options, press **Export**, and PowerPoint asks where to save the file.
 > compiled (only XeLaTeX), and the transitions and links in the flattened deck were checked in
 > its XML, not by playing it.
 >
-> **Video bundle and the media notes (2026-10-24), not yet released:** run in a Chromium browser
-> against a 460 MB deck of three films, a WAV, a trim and a hidden slide reusing a film. The four
-> files came out byte for byte the same as the originals, stored rather than deflated, with the
-> right `MEDIA.txt`; `unzip -t` and ffprobe read them all. In PowerPoint for Mac the same deck
-> was read through Office.js (the timing above), but the first export there wedged the pane at
-> 2.7 GB on its second read of the deck, and the change that halves that peak hasn't been run in
-> PowerPoint yet.
+> **Video bundle and the media notes (2026-10-24), not yet released:** exported inside
+> PowerPoint for Mac 16.112.3, with PNG and the HTML5 presentation, from a 460 MB deck of three
+> films, a WAV, a trim and a hidden slide reusing a film. The four files came out of PowerPoint's
+> own copy of the deck byte for byte the same as the originals, stored rather than deflated;
+> `unzip -t` and ffprobe read them all, and `MEDIA.txt` and the notes were right once a
+> "linked" clip called `NULL` was fixed (PowerPoint writes that for a trimmed clip). It is heavy
+> going: the pane reached about 7 GB reading a deck that size, and an earlier attempt, before the
+> reading was slimmed down, wedged it at 2.7 GB. The same export ran in a Chromium browser too.
 
 ## Install
 
