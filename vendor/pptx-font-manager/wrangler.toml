@@ -1,0 +1,43 @@
+# Cloudflare deployment for PowerPoint Font Manager.
+#
+# A static-assets-only Worker: no server code. The deck never leaves the browser
+# — parsing, font detection and bundle building all happen client-side. The only
+# outbound requests are to Google Fonts, made by the browser directly.
+#
+# The fleet does NOT use Cloudflare Pages — `pages_build_output_dir` fails here
+# with "Could not detect a directory containing static files", which reads like a
+# missing build step and is really the wrong config key. Same shape as
+# aspect-calc, blend-calc and pixel-peeker.
+#
+# Deploys are automatic: .github/workflows/deploy.yml runs `wrangler deploy` on
+# every push to main that touches something a visitor sees. `cf-run npx wrangler
+# deploy` still works from a laptop and is the fallback when Actions is down.
+#
+# There is NO Cloudflare-side build connected to this repo, and there never was.
+# An earlier version of this comment gave a "build command in the Cloudflare
+# project", which read as though the dashboard was wired up; it was not, and
+# between 2026-08-22 and 2026-09-07 twelve commits sat on main without ever
+# reaching the edge. Do not reintroduce a Cloudflare build here — two things
+# deploying the same Worker is worse than one.
+#
+# `public/_headers` is copied into dist/ by Vite and carries the CSP and the
+# immutable-cache rule for hashed assets; the assets runtime honours it. Note the
+# CSP here is wider than the rest of the fleet: connect-src and font-src must
+# allow fonts.googleapis.com and fonts.gstatic.com or the download step fails
+# silently at the fetch.
+#
+# `name` must match the Cloudflare project.
+
+name = "pptx-font-manager"
+compatibility_date = "2026-07-30"
+
+[assets]
+directory = "./dist"
+
+# The public hostname, declared here rather than clicked into the dashboard as
+# the older tools in the fleet were. `custom_domain = true` makes wrangler
+# create the DNS record and the Worker custom domain on deploy, so the hostname
+# is reproducible from the repo and cannot drift from what is actually serving.
+[[routes]]
+pattern = "pptx-font-manager.stoatworks-labs.com"
+custom_domain = true

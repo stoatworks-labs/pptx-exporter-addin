@@ -1,0 +1,965 @@
+# AGENTS.md — bringing an LLM up to speed on pptx-font-manager
+
+Orientation for an AI assistant (or a new human) picking this project up cold.
+`CLAUDE.md` holds the short command reference; this file explains the model and
+the traps.
+
+---
+
+## 1. What this is
+
+A browser app that takes a PowerPoint deck, works out **which fonts it actually
+uses**, checks which of those are **installed on the machine looking at it**,
+and builds a **sidecar .zip** with the fonts and per-platform installer scripts
+so the deck opens correctly somewhere else.
+
+Static Vite + React SPA on a Cloudflare static-assets Worker. No backend — the
+deck never leaves the browser. A Tauri desktop port is planned (see §8).
+
+---
+
+## 2. The two things that make this project non-trivial
+
+Everything else here is plumbing. These two are the product.
+
+### 2.1 A naive `typeface=` grep is catastrophically wrong
+
+Measured against the three real decks used as fixtures, a plain grep over the
+zip reports **39, 36 and 9** distinct typefaces. The true answers are **2, 4 and
+6**.
+
+The noise comes from one place — every Office theme carries a *script fallback
+table*:
+
+```xml
+<a:fontScheme name="Office">
+  <a:minorFont>
+    <a:latin typeface="Calibri"/>            <!-- the actual theme font -->
+    <a:font script="Jpan" typeface="..."/>   <!-- ~30 of these -->
+    <a:font script="Deva" typeface="Mangal"/>
+```
+
+Those entries say "reach for this if the document ever contains Devanagari".
+They are present whether or not a single such character exists in the deck. A
+scanner that counts them tells the user to install Mongolian Baiti, DokChampa
+and Iskoola Pota.
+
+`scan.ts` collects them separately as `ignoredFallbacks` and **never** treats
+them as used. The UI shows the list behind a disclosure, because "why isn't this
+tool listing 39 fonts like the other one" is a fair question that deserves an
+answer.
+
+**A name in the fallback table that is also genuinely used elsewhere must still
+be reported.** Arial is in every fallback table and is also the real theme font
+of one fixture. There is a test for this.
+
+### 2.2 Font names in a deck are face names, not family names
+
+PowerPoint writes whatever the authoring app put in the run properties. Real
+examples from the fixtures, checked against CoreText ground truth on a stock
+Mac:
+
+| In the deck             | Naive verdict | Truth                                          |
+| ----------------------- | ------------- | ---------------------------------------------- |
+| `Helvetica Neue Medium` | missing       | Helvetica Neue **is** installed; Medium is a face |
+| `Poppins Regular`       | missing       | Poppins **is** installed                       |
+| `Times Roman`           | missing       | Times New Roman resolves it                    |
+| `Garamond`              | missing       | genuinely missing                              |
+
+So `names.ts` strips style suffixes to family + weight + italic before
+comparing, and matches against family **and** full/PostScript face names.
+Without this the app cries wolf on fonts the user already has, and then offers
+to download a "Helvetica Neue Medium" from Google Fonts, which does not exist.
+
+Two guards worth knowing about:
+
+- `PROTECTED_FAMILIES` — `Arial Black` is its own installed family, not a
+  900-weight of Arial. Stripping "Black" breaks the match instead of fixing it.
+- If stripping every style token leaves nothing, the original name is kept.
+  `Black` and `Medium` both exist as real family names.
+
+---
+
+## 3. Layout
+
+```
+src/core/         Portable, no DOM. Reusable unchanged in the desktop port.
+  xml.ts            Tiny tag tokenizer — see §4
+  scan.ts           THE scanner. Theme resolution, fallback filtering, tiers
+  names.ts          Face-name -> family/weight/italic, installed matching
+  eot.ts            Embedded font headers, and extraction where possible
+  google.ts         Catalogue matching + downloads
+  substitutes.ts    Stand-ins for fonts that cannot be redistributed — see §9
+  bundle.ts         The sidecar .zip
+  installers.ts     The scripts that go inside it
+  types.ts
+  opc.ts            Relationship parsing, shared by both scanners
+  media.ts          Video/audio/online-media scan; hiding slides — see §12
+  mediaprobe.ts     Container + codec sniffing, Windows/Mac playback verdicts
+  zipdir.ts         Central-directory zip reader and in-place rewriter
+src/MediaPanel.tsx  The video & audio section of the page
+src/platform/
+  fontcheck.ts      Browser-only: Local Font Access + canvas probing
+src/lib/
+  resolve.ts        Ties scan + inventory + Google together
+src/data/
+  google-fonts.json Build-time snapshot — regenerate with the script below
+scripts/
+  build-catalogue.mjs
+test/
+  fixtures/         Real decks. NOT committed — see §7
+```
+
+---
+
+## 4. Why there is a hand-rolled XML tokenizer
+
+`src/core/xml.ts` is ~120 lines and exists because the core must run unchanged
+in three places: the browser, vitest under the `node` environment, and the
+future Tauri port. `DOMParser` exists in one of them.
+
+Everything the scanner needs is attribute values plus enough nesting awareness
+to tell `<a:majorFont><a:latin/>` from `<a:minorFont><a:latin/>`. That does not
+justify a real XML parser, and a regex alone cannot do the nesting.
+
+Do **not** "simplify" this to a regex. The `majorFont`/`minorFont` distinction
+and the `fontScheme` skip in `collectRefs` both depend on tag nesting.
+
+---
+
+## 5. Embedded fonts: three formats, two recoverable
+
+`<p:embeddedFontLst>` points at `ppt/fonts/*.fntdata`. That payload is **EOT**
+(Embedded OpenType), not a bare TTF. Verified against real bytes:
+
+```
+ppt/fonts/Garamond-boldItalic.fntdata   (PowerPoint)
+  EOTSize=79089  FontDataSize=78883  Version=0x00020002
+  Flags=0x00000004  Magic=0x504C        <- TTCOMPRESSED
+  no sfnt signature anywhere in the part
+
+ppt/fonts/font10.fntdata                (Canva)
+  Flags=0x00000000                      <- uncompressed
+  sfnt at offset 216 == len - FontDataSize
+```
+
+| Producer            | Format                     | Recoverable?                    |
+| ------------------- | -------------------------- | ------------------------------- |
+| PowerPoint          | EOT + MicroType Express    | **No** — needs an MTX decompressor |
+| Canva, LibreOffice  | EOT, uncompressed          | **Yes** — last `FontDataSize` bytes |
+| A few others        | bare sfnt                  | Yes — use directly              |
+
+`extractSfnt()` seeks from the **end** of the part, not a fixed offset: the
+variable-length name records sit between the header and the font data. A
+verified Canva extraction yields a valid 18-table TTF.
+
+There is a licensing reason as well as a technical one not to fight MTX:
+permission to *embed* a font in a document is not permission to extract and
+install it. Reporting "this travels with the deck" is the useful answer.
+
+### 5.1 Full vs subset embedding, and why the flag is not enough
+
+PowerPoint's "Embed fonts in the file" has two settings, and the difference is
+what the recipient can do:
+
+| Setting                        | XML                     | At the other end          |
+| ------------------------------ | ----------------------- | ------------------------- |
+| Embed **all** characters       | `saveSubsetFonts="0"`   | view, print **and edit**  |
+| Embed only characters **used** | `saveSubsetFonts="1"`   | view and print, no edit   |
+
+Both live on `<p:presentation>`, and both are `ST_OnOff`, so **`=== '1'` is a
+bug**: Office writes `embedTrueTypeFonts="1"`, Canva writes
+`embedTrueTypeFonts="true"`. `onOff()` in `scan.ts` takes `1`/`true`/`on`.
+
+The flag is a **claim by the producer, not a property of the bytes**, and both
+fixtures prove it in different directions:
+
+```
+office-embedded.pptx  saveSubsetFonts="1"  MTX-compressed — unmeasurable
+canva-embedded.pptx   saveSubsetFonts="1"  606 glyphs, all 95 printable ASCII
+```
+
+Canva sets the subset flag and then embeds a complete Latin face. A tool that
+reads the flag alone would say that deck's font cannot render anything new —
+wrong, and wrong in the confident-looking way §2 exists to prevent.
+
+So `scan.ts` reports **two things side by side and never merges them**:
+
+- `mode` / `editable` — from the flag, because the flag is what PowerPoint
+  itself acts on when it decides whether to allow editing.
+- `coverage` — measured from the recovered face by `sfnt.ts`, because that is
+  what decides whether text actually *renders*.
+
+`evidence` names their relationship. `fuller-than-claimed` is the Canva case.
+`thinner-than-claimed` is the dangerous one — declared full, so editing is
+allowed, with glyphs that are not there. `unverifiable` is every PowerPoint
+deck, forever, because MTX cannot be unpacked.
+
+Coverage is `basicLatin`, resolved one codepoint at a time — not the glyph
+count, which varies by two orders of magnitude between typefaces and settles
+nothing. A family reports its **weakest** face: regular can be complete while
+bold was cut down to two words, and the weakest is what breaks.
+
+The bundle consequence is the sharp one. A subsetted face extracted into the
+zip installs cleanly, renders the deck it came from perfectly, and fails on the
+first character nobody had typed yet — under the real font's name. That gets
+its own `INCOMPLETE` section in `MANIFEST.txt`, above the file inventory.
+
+---
+
+## 6. Google Fonts: the CSS API cannot give you an installable font
+
+This is the trap that will bite anyone who "improves" the download path.
+
+- `fonts.googleapis.com/css` and `/css2` serve **woff2** to any modern browser
+  UA, **subsetted by `unicode-range`** into separate latin / latin-ext /
+  devanagari files.
+- A browser **cannot** override its own `User-Agent` on `fetch` — it is a
+  forbidden header. There is no way to ask them for the TTF.
+- A subsetted woff2 in a font bundle is worse than nothing: it installs without
+  complaint and renders blanks outside its subset.
+
+So downloads come from **`raw.githubusercontent.com/google/fonts`** — the
+original complete files, `Access-Control-Allow-Origin: *`.
+
+The catalogue at `src/data/google-fonts.json` is a build-time snapshot because
+`fonts.google.com/metadata/fonts` sends **no** CORS header. It carries the real
+SPDX licence, taken from which directory (`ofl/`, `apache/`, `ufl/`) the files
+live in. 1934 of 1942 families have downloadable static TTFs.
+
+**The CSP in `public/_headers` must list `raw.githubusercontent.com` in
+`connect-src`.** The dev server does not apply `_headers`, so getting this wrong
+fails only in production.
+
+Variable fonts (`EBGaramond[wght].ttf`) are one file covering the whole axis.
+`pickFiles()` prefers a matching static face and falls back to the variable.
+
+---
+
+## 7. Fixtures are real decks and are NOT committed
+
+`test/fixtures/*.pptx` is gitignored. They are private presentations. Every test
+that needs one is wrapped in `it.runIf(has(...))`, so the suite passes on a
+clean clone and in CI — it just tests less.
+
+If you need them, any deck will do, but the three shapes that matter are:
+
+- one authored in **Canva** (uncompressed embedded EOT, huge fallback table)
+- one from **Office with embedded fonts** (MTX-compressed, many layouts)
+- one that is **theme-reference heavy** (`+mn-lt` everywhere, no explicit fonts)
+
+The third fixture is 316 MB, which is why `scanPptx` passes a `filter` to
+`unzipSync` and only inflates `.xml`, `.rels` and `.fntdata`. Without it the
+browser inflates hundreds of MB of video for nothing.
+
+---
+
+## 8. The desktop port
+
+Same repo, same `src/core/`. Only `src/platform/native.ts` and the factory in
+`src/platform/index.ts` differ from the web build, plus `src-tauri/`. Tauri v2.
+
+```bash
+npm run desktop:dev      # tauri dev  (drives vite on 5188 — the port must match devUrl)
+npm run desktop:build    # bundles .app/.dmg/.nsis/.deb/.appimage
+cd src-tauri && cargo test
+cd src-tauri && cargo run --example probe           # native enumeration vs ground truth
+cd src-tauri && cargo run --example install_probe   # real install, then `-- clean`
+```
+
+### 8.1 Two traps found by testing, not by reading
+
+**`window.__TAURI__` does not exist.** It is only injected when
+`withGlobalTauri` is set in `tauri.conf.json`, which it is not. Sniffing for it
+reports every desktop launch as a browser: the app runs, looks completely
+normal, and silently loses the only feature it was built for. Use `isTauri()`
+from `@tauri-apps/api/core`.
+
+**macOS font registration is asynchronous.** Writing a file into
+`~/Library/Fonts` *does* work — but the font server picks it up on its own
+schedule, measured at roughly **ten seconds** on an M-series Mac. That is long
+enough to be a bug and not a delay, because the install flow immediately
+re-checks what is installed and would truthfully report the font it just
+installed as still missing. `register_font` calls
+`CTFontManagerRegisterFontsForURL` with user scope, which makes it visible
+synchronously. Verified causally: absent (2232 families) -> install -> visible
+in the same process (2233).
+
+### 8.2 Watch out when testing font installation on this machine
+
+`~/Library/Fonts/google-fonts/` is a **clone of the entire google/fonts repo**,
+and macOS scans that directory recursively. Roughly 1,900 Google families are
+therefore already installed, and `ls ~/Library/Fonts | grep -i <name>` will not
+show them because they are in subdirectories.
+
+This invalidates the obvious test. Picking any well-known Google font as an
+"install this missing font" target proves nothing, because it is already there.
+Find a genuinely absent family first:
+
+```bash
+cd src-tauri && cargo run --example probe   # then diff against src/data/google-fonts.json
+```
+
+At the time of writing 113 of the 1,942 catalogued families were not visible to
+CoreText; `Asimovian` is the one the install probe uses.
+
+### 8.2b Windows, measured on real Windows
+
+Tested on Windows 11 ARM64 (build 26200) in the Parallels VM, driven with
+`prlctl exec`. Two things about that harness matter before you trust a result:
+
+- **`prlctl exec` runs as SYSTEM** (`MACHINE$`), so `%LOCALAPPDATA%` is
+  `C:\Windows\system32\config\systemprofile\...`. A per-user font install
+  tested that way proves nothing about a real user. Pass `--current-user`.
+- **`Expand-Archive` strips Mark-of-the-Web.** Only the shell's own copy engine
+  propagates it, so extract through `Shell.Application`'s `CopyHere` if the
+  point of the test is MOTW. And `curl`/`Invoke-WebRequest` never set MOTW in
+  the first place — only browsers do, so write the `Zone.Identifier` stream
+  yourself.
+
+What the bundle installer got right, confirmed end to end under a genuine
+`ZoneId=3`:
+
+| Claim in README.txt | Result |
+| --- | --- |
+| The `.ps1` is blocked when it comes from a downloaded zip | **Confirmed** — "cannot be loaded… is not digitally signed", under the default `CurrentUser = RemoteSigned` |
+| The `.cmd` wrapper gets through | **Confirmed** — installs, exit 0 |
+| Existing fonts are skipped, not overwritten | **Confirmed** on a second run |
+| The font ends up usable | **Confirmed for GDI** — a fresh process enumerating `InstalledFontCollection` sees the family (272 families, the new one among them) |
+
+What it got wrong, and is now fixed:
+
+- **The registry value name should be the font's own face name.** It was
+  written from the filename — `Lobster-Regular (TrueType)` instead of
+  `Lobster (TrueType)`. `install-fonts.ps1` now reads the real face name out
+  of the file with `PrivateFontCollection` before writing the value, which is
+  what the shell's own installer records (checked on 2026-09-12 by installing
+  through `Shell.Application`'s Fonts folder: same value name, same full-path
+  data). The value "not persisting" that was blamed on the name was something
+  else entirely — see the next bullet.
+- **`New-Item -Path $regPath -Force` empties the key.** On the registry
+  provider, `-Force` against an *existing* key recreates it with no values.
+  The script ran that line on every start, so each run unregistered **every
+  per-user font on the machine** — earlier bundles' fonts and the user's own
+  right-click installs alike — and then registered only its own. The files
+  stay and GDI keeps the session's copies, so nothing looks wrong until the
+  next sign-in, when they are all gone. Measured on Windows 11 26200: 10
+  values before that one line, 0 after; the fixed script (`Test-Path` guard)
+  went 10 → 11. This is what the earlier test saw as "the value did not
+  persist": the second run wiped the first run's value. The Rust
+  `register_font` uses `RegCreateKeyExW`, which opens an existing key intact,
+  and was never affected.
+- **Nothing told the OS a font had arrived.** Both the script and the Rust
+  `register_font` copied the file and wrote the value and stopped there.
+  Windows' own installer also calls `AddFontResourceW` and broadcasts
+  `WM_FONTCHANGE`; both now do. This is the same class of bug as the macOS
+  asynchronous-registration one in §8.1, with a different remedy.
+
+**Chromium keeps two font lists, and only one of them refreshes in-process.**
+The 2026-09-12 run on Windows 11 26200 with Edge 153, driven over CDP,
+retracts the earlier "Edge cannot see per-user fonts" finding. Every deck font of the day (`Neo Sans Pro`, `Neo Sans Pro Medium`,
+`Aptos`, `Aptos Display`, plus variable Montserrat and DM Sans) probed as
+installed in a fresh Edge launched *after* the per-user install. A font
+installed *while* Edge was running is invisible to the **rendering** path —
+the canvas width probe (the app's default) and CSS `local()`/`FontFace` alike
+— in the same page, after `Page.reload`, in a new-origin tab, and in a
+`noopener` popup (a fresh renderer). That list is fixed when the browser
+*process* starts and nothing short of a process restart moves it; every tab,
+iframe and popup shares it, `window.open` cannot start a new process, and a
+Windows PWA is hosted by the same process, so no page-side trick reaches past
+it. Confirmed on a browser pid that outlived the install by ~100 min: Abel
+still `false` to both canvas and `local()`.
+
+`queryLocalFonts()` is the exception — a **separate enumeration list that does
+refresh in-process** (this retracts the first version of this section, which
+called it just as frozen; that was judged from an Aboreto run checked only
+seconds after install). Abel, installed into a browser pid that started 9 min
+earlier and never restarted, enumerated correctly later the same session. But
+the refresh latency is long and irregular — a second fresh family (ABeeZee)
+was still absent from `queryLocalFonts` after **12+ min** of 20 s polling in
+the same long-lived page, while Abel showed by ~100 min — and even once it
+lists a font, that font still will not *render* in that browser (the CSS path
+is frozen). So it cannot power a live "re-check", and the only fast reliable
+answer remains a browser-process restart. A genuinely new browser process
+does re-enumerate everything at once (clean run: Aboreto, 255 → 256 the moment
+a fresh process came up).
+
+One probe caveat surfaced on the way: the canvas probe reported `Aptos
+Black` present on a machine that had only `Aptos` — Chromium resolves a
+"Family Weight" name to the base family — so a raw-name canvas hit for a
+styled name proves the family, not the face.
+
+The consequence for the product: **on Windows the web app keeps reporting a
+font as missing after the user installs it, and no page-side re-check reliably
+fixes that** — the canvas probe is frozen until a browser restart, and the
+`queryLocalFonts` refresh is far too slow (>12 min) and too irregular to hang a
+button on (and would not make the font render in that browser anyway). The app
+says so (`fontListSnapshottedAtLaunch()` in `fontcheck.ts`, the note in
+`App.tsx`), as do the bundle's README and the installer's closing line. A live
+in-app "installed now ✓" needs native code — the desktop build's font-kit
+inventory, or a `/api/fonts` endpoint on the tray launcher. The desktop build
+reads the OS font list itself and is unaffected.
+
+Two other things the Windows run confirmed, which macOS could not:
+
+- the canvas width-measurement probe correctly identifies Windows-only faces
+  (Segoe UI, Cambria, Calibri) and rejects a control string;
+- the `raw.githubusercontent.com` font fetch clears CORS from Edge on Windows
+  (160,316 bytes, sfnt signature intact).
+
+Harness notes for the next person: a process started from an ssh session dies
+with it (OpenSSH's job object) — launch Edge through
+`Invoke-CimMethod Win32_Process Create` for session 0, or a scheduled task
+with an `Interactive` principal for the desktop session; tunnel the DevTools
+port with `ssh -L`. `queryLocalFonts` returns an empty list in headless
+mode whatever `Browser.grantPermissions` says; headed, with the page on
+`http://localhost` and the grant scoped to that origin, it enumerates.
+
+### 8.3 Why the Rust side re-validates everything
+
+`install_fonts` writes into the user's font directory, so it does not trust the
+frontend:
+
+- filenames must be plain font filenames — no separators, no `..`, and a
+  `.ttf`/`.otf`/`.ttc` extension;
+- the bytes must start with a real sfnt signature. This is not a formality: a
+  failed download returns an **HTML error page**, and writing that into the
+  font directory is how a font manager corrupts a font book;
+- existing files are skipped, never overwritten;
+- if the OS-registration step fails the written file is removed again, rather
+  than leaving a font that half exists.
+
+Because of that validation the Tauri capability set grants **no filesystem
+plugin** — everything goes through these commands.
+
+### 8.4 Face names are resolved lazily
+
+`font_inventory` takes the list of names the deck wants. Families come back in
+full (2,232 here, ~210 ms), but face names do not: reading the name table of
+all 11,630 installed font files to answer a question about five of them takes
+seconds. Only the families that prefix-match something the deck asked for get
+their faces loaded.
+
+This is what makes the desktop build *more* accurate than the web one.
+`Helvetica Neue Medium` resolves to an exact installed **face**, so it reports
+"Installed" rather than the browser's best answer of "family only".
+
+## 9. State of play
+
+Verified working, end to end:
+
+*Web build, in a real browser:*
+
+- scanning all three fixture shapes, including the 316 MB one
+- installed/missing verdicts matching CoreText ground truth on this Mac
+- embedded-EOT extraction to a valid TTF
+- bundle .zip: structure, manifest, installer scripts, line endings, exec bits
+- Google Fonts download over CORS from a page origin, under the production CSP
+
+*Desktop build, on macOS:*
+
+- app launches, detects desktop mode, native inventory (2,232 families, ~210 ms)
+- native face resolution beating the browser: `Helvetica Neue Medium` and
+  `Times Roman` both resolve as exact installed faces
+- **real font install**, verified causally against a genuinely absent family:
+  absent -> download from google/fonts -> installed -> visible to CoreText in
+  the same process
+- install guards: HTML error page refused, path traversal refused, existing
+  file skipped rather than overwritten
+- **online video to embedded** (§13), 2026-10-24, debug build launched with a
+  bare PATH: yt-dlp and Deno fetched and checksum-checked from the app,
+  Homebrew's ffmpeg found anyway, Big Buck Bunny downloaded at 1080p with
+  live progress, probed, and a 269 MB copy of the deck saved through the
+  chunked save — `testzip` clean, no online video left, slide 2 trimmed to
+  95 s. The same rewrite, with a 720p download, was opened and played in
+  PowerPoint for Mac 16.x.
+
+**Not verified:**
+
+- The online-video path on **Windows and Linux**: tool discovery, the
+  FFmpeg-Builds archives (the Linux one needs `tar -xJf`), `taskkill` on
+  Cancel, and playback of the result in PowerPoint for Windows.
+- The real **Save dialog** on the desktop. Every desktop save (the embedded
+  copy, one media file, the media zip, the hidden-slides copy) was run in the
+  debug app through `PFM_DEBUG_SAVE_DIR`, so the chunked write and the rename
+  are exercised; the dialog in front of them is not.
+- The 1080p embedded deck was checked by `testzip` and the probe, not opened in
+  PowerPoint; the 720p one was.
+
+- **The desktop app's Rust `register_font` has never run on Windows.** The
+  bundle's `install-fonts.ps1` now has (see §8.2b), and the two share a
+  convention — face-name registry value, `AddFontResourceW`, `WM_FONTCHANGE` —
+  so the risk is much lower than it was. But it is different code, and the
+  Windows build itself has never been produced: there is no Rust or MSVC
+  toolchain in the VM, and cross-compiling from macOS fails in `tauri-winres`
+  for want of `llvm-rc`. The Win32 FFI block was checked only by compiling an
+  equivalent against stubs on the host, which proves the signatures are
+  well-formed and nothing else.
+- Whether per-user fonts registered by the bundle survive a **sign-out and
+  back in**. The registrations now persist across further installs (§8.2b),
+  and they are byte-for-byte what the shell writes, but a logon cycle has not
+  been driven.
+- **Linux, at all.** The `fc-cache` path in `post_install_note` and the bundle's
+  `install-fonts.sh` are both unexecuted.
+- `install-fonts.command` is syntax-checked (`bash -n`) but has not been run
+  against a real font install — the desktop app's own install path was tested
+  instead, since that is the one people will use.
+- The Local Font Access path (`queryLocalFonts`) has been exercised for
+  enumeration only (§8.2b, permission granted through CDP rather than the
+  prompt); blob-reading of locally installed fonts into a bundle is still
+  unexercised.
+- The desktop app has not been driven through a full deck-to-install cycle in
+  its own window; the install path was exercised through
+  `cargo run --example install_probe` instead.
+- No code signing or notarisation yet, so a distributed build will hit
+  Gatekeeper.
+
+---
+
+## 9. Substitutes: the fonts that actually go missing
+
+The fonts a deck is most likely to be missing are not exotic. They are
+**Calibri, Cambria, Arial, Times New Roman, Courier New and Georgia** — the
+system fonts a deck picks up simply by being authored on Windows or a Mac.
+
+All of them share three properties: they may not be redistributed, they are not
+on Google Fonts, and the machine the deck is going to very likely lacks them
+too. Before `src/core/substitutes.ts` the app's entire answer for `Calibri` was
+"missing, not on Google Fonts", with no suggestions — `suggestGoogleFamilies`
+ranks by shared word tokens and there is no path from "Calibri" to "Carlito".
+
+### Metric-compatible is a strictly stronger claim than "looks similar"
+
+A **metric-compatible** face has the same advance widths as its target. Text
+occupies the same horizontal space, so line breaks hold, text stays in its box,
+and a slide proofed at 1920x1080 is still proofed. These exist because Google
+and RedHat commissioned them for exactly this problem:
+
+| Deck asks for   | Stand-in | Note                         |
+| --------------- | -------- | ---------------------------- |
+| Calibri         | Carlito  | commissioned as a Calibri metric clone |
+| Cambria         | Caladea  | commissioned as a Cambria metric clone |
+| Arial/Helvetica | Arimo    | Chrome OS core font          |
+| Times New Roman | Tinos    | Chrome OS core font          |
+| Courier New     | Cousine  | Chrome OS core font          |
+| Georgia         | Gelasio  | metric-compatible with Georgia |
+
+A **similar** face (Open Sans for Segoe UI, EB Garamond for Garamond) will
+change line breaks. Presented as a fix, it is worse than saying nothing: the
+user believes the deck is safe and discovers otherwise in front of an audience.
+
+**So `metric` is a separate field, not a ranking.** It drives the colour of the
+row, the wording, and a distinct `SUBSTITUTIONS` section in the bundle
+manifest. Do not collapse the two into one sorted list.
+
+### Two things that will bite
+
+- **Substitutes are a fallback, never a first answer.** `resolve.ts` only
+  attaches them when the font is missing *and* nothing downloadable matches it
+  directly. A real copy of the font the deck asked for always wins.
+- **`parseFontName('Times New Roman')` returns the family `Times New`**, because
+  `Roman` is a weight token (as in `Times Roman`) and only `times roman` is in
+  `PROTECTED_FAMILIES`. The installed-check survives this by comparing the raw
+  name first, and `findSubstitutes` does the same — it tries `parsed.raw` before
+  `parsed.family`, and `Times New` is listed as an alias as belt-and-braces.
+  There is a test pinning this exact behaviour.
+
+Substitutes are deliberately **excluded from the bulk "install missing fonts"
+action**. A substitute is a different typeface, and swapping one in without the
+user choosing it is not a call this app gets to make silently. They get their
+own per-row button, and their own manifest section that leads the file.
+
+---
+
+## 10. Fontsource: a second source, and the same subsetting trap
+
+`src/core/fontsource.ts` adds the **119 open families Google Fonts does not
+carry** — Adwaita, Aileron, Chunk Five, Bluu Next and similar.
+
+### Its docs are wrong about TTFs, in the way that matters
+
+Fontsource states that its `.ttf` files bundle every subset into one file.
+**They do not.** Measured against the live CDN:
+
+```
+inter@latest/latin-400-normal.ttf   200, 66,912 bytes   <- latin only
+inter@latest/400-normal.ttf         404
+inter@latest/full-400-normal.ttf    404
+```
+
+Every file is `{subset}-{weight}-{style}.ttf`. This is the same unicode-range
+subsetting that makes the Google CSS API useless here (§6), and a subsetted
+font in a bundle is worse than nothing — it installs cleanly, then renders
+blanks outside its subset.
+
+**What makes it safe anyway:** a family declaring exactly *one* subset has
+nothing to lose. Its single `latin` file *is* the whole font. The build script
+keeps only single-subset families, so if Fontsource ever adds a multi-subset
+non-Google family it is dropped rather than silently shipped broken.
+
+### Three more things the build script does
+
+- **Drops anything Google already has.** Fetching Google families from
+  Fontsource would mean fetching a subsetted republish instead of the original.
+- **Drops names that collapse onto a Google family.** `Syne Italic` is a real
+  Fontsource entry, but `parseFontName` reduces it to `Syne`, which Google has —
+  so the entry could never win the precedence check. Dead by construction is
+  worse than absent.
+- **Drops non-redistributable licences,** though at present everything is
+  OFL/Apache/CC0/MIT/Unlicense.
+
+### Precedence lives in exactly one place
+
+`downloadPlan()` in `src/lib/resolve.ts` decides which catalogue supplies a
+font: Google, then Fontsource, then nothing. Callers must not branch on
+`r.google` / `r.fontsource` themselves — the row button, the bulk install and
+the bundle builder all go through it so they cannot drift apart. Substitutes
+(§9) sit below both and are handled separately, because they are a different
+typeface rather than a copy of what was asked for.
+
+### CSP
+
+`public/_headers` must list **`cdn.jsdelivr.net`** in `connect-src` alongside
+`raw.githubusercontent.com`. Verified under the real production headers via
+`npm run serve:dist`, with `fonts.googleapis.com` as a negative control to
+confirm the policy is actually being enforced rather than merely permissive.
+
+---
+
+## 11. Adobe Fonts: recognition only, and why that is the whole story
+
+`src/core/adobe.ts` can identify an Adobe font. It can never download one, and
+**no amount of signing in would change that.** Two independent blockers:
+
+1. **There is no font-file endpoint.** The Typekit/Adobe Fonts API is still live
+   — `typekit.com/api/v1` answers 401, not 404 — but it does kit management and
+   metadata only. Desktop faces reach a machine solely through Creative Cloud
+   sync, into an obfuscated CoreSync directory
+   (`~/Library/Application Support/Adobe/CoreSync/plugins/livetype/.r/` on
+   macOS). There is nothing to authenticate *to* for a file.
+2. **The licence forbids this app's entire workflow.** Adobe's documentation
+   states the fonts "are not compatible with packaging workflows that involve
+   transferring font files to another user or computer", and the terms do not
+   permit copying font files or distributing them so others can use them
+   directly. A sidecar `.zip` handed to a venue is that transfer.
+
+So do not add a fetcher here. There is a test asserting the module exports no
+`fetch`/`download`/`install` function, precisely so a future reader who has not
+read this section cannot quietly add one.
+
+### What it is actually for
+
+For a **missing** font, it names the reason and links to activation. "Not on
+Google Fonts" is true but reads as a failure of the tool; "Adobe's licence does
+not permit putting this in a bundle, here is where a subscriber activates it"
+is actionable. Compare §5 on MTX embeds: reporting the truth beats a fix that
+cannot exist.
+
+### Why it fires ONLY for missing fonts — the trap
+
+**Adobe Fonts resells the Microsoft system fonts.** Monotype lists Calibri,
+Times New Roman, Courier New, Segoe UI and Wingdings there. Those are genuine
+catalogue entries, not matching bugs.
+
+So a catalogue hit does not mean "this font is exotic and cannot travel". An
+early cut of this feature applied the note to installed fonts too, in order to
+warn about the most dangerous deck there is — the one that **works perfectly for
+its author and breaks everywhere else**, because an Adobe font synced by
+Creative Cloud registers with the OS like any other. Run against a real deck, it
+told the user that *Times New Roman* "cannot travel with the deck and will break
+elsewhere". That is the §2.2 false alarm in a new costume.
+
+### Recovering the warning: the file path, not the name
+
+The name cannot carry that warning. The **location of the file** can, and the
+desktop build now reports it. A face Creative Cloud syncs is not in the font
+directory at all:
+
+    macOS    ~/Library/Application Support/Adobe/CoreSync/plugins/livetype/.r/
+    Windows  %APPDATA%\Adobe\CoreSync\plugins\livetype\r\
+
+with an obfuscated, extensionless filename. Times New Roman is never in there;
+an activated Proxima Nova is only in there. So `resolveFont` flags an
+**installed** Adobe font when, and only when, `installedViaAdobeSync` is true —
+proven by a path — and the system fonts cannot satisfy that condition however
+many times Monotype lists them.
+
+Three parts, and each one has a trap in it:
+
+1. **font-kit will not give you the path on macOS.** Its CoreText source hands
+   back `Handle::Memory` for *every* installed face — verified against Arial,
+   Gill Sans and Helvetica Neue, 69 faces, no paths at all. So `fonts.rs` asks
+   CoreText itself (`CTFontDescriptor` → URL, via the `core-text` crate) for
+   family locations. Windows and Linux need none of this: DirectWrite and
+   fontconfig both build `Handle::Path` already.
+2. **The store is also read directly**, in `adobe_sync_store()`. It does not
+   depend on the OS font API naming a location, and the family name comes out
+   of each file's own name table because the filenames are deliberately
+   meaningless. Cost scales with how many fonts the user has activated; an
+   empty store is one `read_dir`.
+3. **A family with a synced file AND an ordinary one is not a risk.** Adobe
+   resells the system fonts, so a subscriber can hold two Times New Romans. The
+   family is only reported as synced when *no* non-synced file backs it —
+   otherwise the false alarm walks straight back in. Bundling is filtered
+   separately, per file, because the synced file may not travel even when its
+   family is safe.
+
+`src/platform/adobe-sync.ts` owns the rule for what a synced path looks like,
+and matches the four-directory chain `Adobe/CoreSync/plugins/livetype` rather
+than a `$HOME`-based prefix — the leaf differs by platform (`.r` vs `r`), both
+filesystems are case-insensitive, and a relocated home would defeat a literal
+prefix. The Rust side locates the store and reports paths; it does not classify
+them. Keep those two in step.
+
+**The positive case has never been observed on a real machine.** The `.r`
+directory on the development Mac exists and is empty — nothing is activated in
+Creative Cloud — so every test of a synced font drives hand-written paths of the
+documented shape. Confirming it end to end needs a font activated in Creative
+Cloud, then a rescan on the desktop build. The tests say so in their own
+comments; do not quietly upgrade them to "verified".
+
+Both halves of the original trap are still pinned by tests: Times New Roman
+installed gets no flag, Proxima Nova missing still does.
+
+### The catalogue may only ever assert POSITIVES
+
+`fonts.adobe.com/fonts.json` reports 5,369 families, sends no CORS header
+(so it is baked at build time, like the Google one), and **cannot be fully
+enumerated**:
+
+- page size is fixed at 12 — `limit` and `per_page` are ignored;
+- it hard-caps at **page 200**, so the plain feed reaches exactly 2,400;
+- `?filters=cl:xx` partitions it differently, but the 13 classification slices
+  total 4,189 *before* dedup.
+
+The build script unions the feed with every classification slice, which gets
+closer, but completeness is not achievable from the public endpoint.
+
+**Therefore a name that is absent means "unknown", never "not an Adobe font".**
+`findAdobeFamily` returning null must stay silent in the UI. Do not add a
+`definitelyNotAdobe` helper — the data cannot support one. The catalogue records
+`libraryTotal` alongside `count` so the gap is visible in the data itself, and a
+test asserts `count < libraryTotal` so the incompleteness cannot be forgotten.
+
+## 12. Video and audio
+
+`scanMedia()` runs beside `scanPptx()` on the same bytes, and a failure in it
+must never cost the user the font report — `App.tsx` catches it separately.
+
+### What PowerPoint actually writes
+
+Checked against real Office decks (a 116-slide client deck, a 2 GB awards show
+with 70 clips), not the spec:
+
+```xml
+<p:pic><p:nvPicPr><p:cNvPr id="4" name="Comp 1"/>...
+  <p:nvPr>
+    <a:videoFile r:link="rId2"/>                         <!-- rel type .../video -->
+    <p:extLst><p:ext uri="{DAA4B4D4-...}">
+      <p14:media r:embed="rId1"><p14:trim st="..." end="..."/></p14:media>
+```
+
+Both relationships point at the same `../media/media1.mp4`. **Counting
+relationships counts every video twice**; `media.ts` groups by shape and
+dedupes by target. The same file is routinely reused on several slides (one
+real deck puts `media1.mp4` on four), so a *file* and a *placement* are
+different things and the model keeps them apart.
+
+- Online video: the same shape, relationship `TargetMode="External"` with a URL.
+  Some decks record only `<p15:webVideoPr embeddedHtml="&lt;iframe src=...">`.
+  PowerPoint for Mac writes neither extension, only `<a:videoFile r:link>` — see
+  §13, which also turns them into embedded files.
+- Linked local video: External with a `file:///` path. Not in the deck at all.
+- Flash: a `<p:control>` whose `ppt/activeX/*.xml` has the ShockwaveFlash
+  classid and a `Movie` property.
+- Web add-in: `<we:webextensionref>` -> `ppt/webextensions/*.xml`, whose
+  property values carry the URL.
+- Hyperlinks are reported **only** when they lead to a video host or file;
+  every deck has ordinary web links and they are not media.
+- **Layouts and masters carry media too** (the Partner Summit deck has a `.mov`
+  on a layout). It plays on every slide built from that layout, so each slide
+  is read with its layout and master and inherited media is reported against
+  the slide, marked `inheritedFrom`. A layout no slide uses is not in the show
+  and is ignored.
+
+Playback settings come from `<p:timing>`: a `mediacall` effect with
+`cmd="playFrom(…)"` whose `nodeType` is `afterEffect`/`withEffect` starts by
+itself, `clickEffect` is in the click sequence, and no `playFrom` at all means
+the only way to start it is to click the video. Loop is `repeatCount=
+"indefinite"` on the `cMediaNode`'s `cTn`; hide-while-not-playing is
+`showWhenStopped="0"`. **`display="0"` on that `cTn` is NOT hide-while-not-
+playing** — PowerPoint writes it on every media node; reading it that way
+marked every clip in both real decks as hidden.
+
+### Why a second zip reader
+
+`scan.ts` can `unzipSync` with a filter because fonts live in small parts.
+Media cannot: the awards deck is 2 GB. `zipdir.ts` reads the central directory
+and returns `subarray` views for stored (method 0) entries — every video in
+every real deck checked is stored — so probing a 110 MB clip, or handing it
+back to the user, copies nothing. The 2 GB deck scans in ~0.4 s under node.
+
+`rewriteZip()` hides slides by copying every entry's local record (header,
+data, descriptor) verbatim, re-deflating only the replaced slide XML, and
+rebuilding the central directory with patched offsets. It returns chunks, not
+one buffer, so a `Blob` can be built from them without a second copy of the
+deck. A 458 MB deck with seven slides hidden comes back **150 bytes** larger;
+Python's `zipfile.testzip()` passes, and PowerPoint for Mac 16.x opened it with
+no repair prompt and reported exactly the chosen slides hidden (2026-09-28).
+Zip64 is read but not written — `rewriteZip` refuses rather than produce a
+file PowerPoint cannot open.
+
+### The playback verdicts
+
+`mediaprobe.ts` walks MP4/MOV boxes (`moov/trak/mdia/minf/stbl/stsd`, `avcC`,
+`hvcC`, `esds`, `stts`), ASF's header GUID, AVI's `strh`/`avih`, and magic
+numbers for the rest. The Windows/Mac table encodes what Media Foundation and
+AVFoundation can decode, plus Microsoft's published format list. Specifics
+worth knowing:
+
+- H.264 **High 10 / 4:2:2 / 4:4:4** plays on neither. Read the chroma and bit
+  depth from the avcC extension bytes, not the profile alone.
+- H.264 past **4096×2304** is `unknown` on Windows, not `no`: that is the limit
+  Microsoft documents for its decoder, but some GPUs decode past it. The CBRE
+  deck's 7680×2160 LED-wall clip is the real case.
+- HEVC tagged **`hev1`** does not play on the Mac; `hvc1` does. A remux fixes
+  it. Windows needs the HEVC Video Extensions either way.
+- `extension` = only with an optional Store codec pack. Treat as "no" for a
+  venue machine until someone checks; the UI calls it "needs codec pack".
+- These verdicts are from documentation and known decoder support. **None has
+  been confirmed by playing the file in PowerPoint on Windows.**
+
+`test/fixtures/media.pptx` (from `scripts/make-media-deck.mjs`, needs ffmpeg)
+holds one of each case, with show order deliberately different from file order.
+
+---
+
+## 13. Online video: download it and embed it (desktop only)
+
+The desktop build can take a deck's online videos, download them with yt-dlp,
+and save a copy of the deck that plays them from inside the file.
+`src/core/localvideo.ts` rewrites the deck; `src-tauri/src/video.rs` finds,
+fetches and runs the tools and writes the file; `src/VideoFetchPanel.tsx` is
+the UI. The web build only says the desktop app can do it: a browser can
+neither run yt-dlp nor fetch from YouTube.
+
+### What PowerPoint for Mac writes, before and after
+
+`test/fixtures/online-video.pptx` was made in PowerPoint for Mac 16.x with
+Insert ▸ Video ▸ Online Film, twice (Big Buck Bunny, CC-BY, by its watch URL
+and by `youtu.be/…?t=95`). It is committed, unlike the real-world fixtures.
+PowerPoint wrote **less** than §12's synthetic shape:
+
+```xml
+<p:nvPr><a:videoFile r:link="rId1"/></p:nvPr>          <!-- no extLst at all -->
+rId1  .../relationships/video  https://www.youtube.com/embed/ID?start=95&feature=oembed  External
+```
+
+The `t=95` became `start=95` in the embed URL. The poster frame is the YouTube
+thumbnail (one jpeg shared by both slides), `descr` holds the video's title,
+and the timing tree already has the same `playFrom`/`togglePause` mediacall
+nodes a local video gets. So the conversion is three edits per part: point the
+video relationship at `../media/mediaN.mp4`, add the `.../2007/relationships/media`
+relationship PowerPoint expects beside it, and add the `p14:media r:embed`
+extension (`{DAA4B4D4-…}`). Any `p15:webVideoPr` extension goes: a shape
+carrying an embed code is still online as far as PowerPoint cares. Shapes
+recorded *only* as an embed code (`embedCodeOnly` in `media.ts`) have no
+relationship to repoint and are left, with a reason.
+
+A start time in the link becomes `<p14:trim st="95000"/>`, which is what the
+online video did. **YouTube's `end=` is not mapped**: what `p14:trim end`
+measures (a time, or an amount off the end) has not been checked in
+PowerPoint, and a guess would cut the wrong part of someone's clip.
+
+Verified in PowerPoint for Mac 16.x on 2026-10-24 with a real 720p download:
+opens with no repair prompt, the shape gets the local-media controller and the
+full Playback tab (Trim Video, bookmarks, fades), it plays, and slide 2's Trim
+dialog starts at 1:35.000.
+
+### Three tools, and what each buys
+
+Measured against YouTube on 2026-10-24 with yt-dlp 2026.10.21:
+
+| yt-dlp with      | What comes back |
+| ---------------- | --------------- |
+| nothing          | separate picture and sound only — nothing PowerPoint can play |
+| Deno             | one combined 360p file (format 18) |
+| ffmpeg           | H.264 up to 1080p + AAC, joined by ffmpeg; yt-dlp warns that YouTube without a JS runtime is deprecated |
+| Deno and ffmpeg  | the same, without the warning |
+
+**YouTube no longer serves format 18 without a JS runtime**, so the old "no
+ffmpeg, take the 360p MP4" fallback returns nothing at all unless Deno is
+there. H.264 stops at 1080p; above it YouTube has only VP9 and AV1, which
+PowerPoint for Mac cannot decode, so the quality menu stops at 1080p.
+
+The format selector prefers **stereo** AAC: for some videos YouTube's "best"
+AAC is 5.1 (format 258), which a laptop then downmixes into the venue's PA on
+its own terms.
+
+### Where the tools come from
+
+None is bundled. yt-dlp goes stale in weeks, and a binary inside a signed .app
+cannot update itself without breaking the signature. "Get" downloads the
+publisher's own release and checks it against the SHA-256 published beside it:
+
+| Tool   | Source | Checksum |
+| ------ | ------ | -------- |
+| yt-dlp | `github.com/yt-dlp/yt-dlp` latest release | `SHA2-256SUMS` |
+| Deno   | `github.com/denoland/deno` latest release | `<asset>.sha256sum` |
+| ffmpeg, Windows/Linux | `github.com/yt-dlp/FFmpeg-Builds` `latest` | `checksums.sha256` |
+| ffmpeg, macOS | `ffmpeg.martin-riedl.de` (signed, GPL, x264) | `<resolved file>.sha256` |
+
+Martin Riedl's `redirect/latest/…` URL answers HEAD with a 404 and GET with a
+307 to the real file. The checksum lives beside the *resolved* file, not the
+redirect (`redirect/…/ffmpeg.zip.sha256` is a 404), so the 307 is followed by
+hand. Downloads go through the system curl, so no HTTP stack is linked in.
+Fetched copies live in `<app data>/tools` and are the only ones the app will
+replace; a staged copy that will not run `--version` is refused before it
+replaces a working one.
+
+### Traps
+
+- **A Finder-launched app gets a bare PATH** (`/usr/bin:/bin:/usr/sbin:/sbin`).
+  Homebrew's `/opt/homebrew/bin` has to be searched by name, and yt-dlp run
+  from the app cannot find ffmpeg or Deno on its own either, so they are
+  passed by path (`--ffmpeg-location`, `--js-runtimes deno:<path>`). Test with
+  `env -i … PATH=/usr/bin:/bin`, not from a shell.
+- **`--print` implies `--quiet`**, which silences the progress template.
+  `--progress` brings it back. Without it the UI sits on "Starting…" for the
+  whole download.
+- yt-dlp's standalone build unpacks itself on **every** start: about ten
+  seconds on an M-series Mac before it does anything. Version checks get a
+  long timeout and the UI says "Starting…" meanwhile.
+- `--js-runtimes` only exists from yt-dlp 2025.11.12; an older one is not
+  passed it.
+- yt-dlp runs in its own process group so **Cancel** also stops the ffmpeg it
+  started.
+
+### Saving
+
+On the desktop every save in the media panel goes through `saveFile()`: the
+platform's Save dialog, then the deck's chunks (most of them views into the
+original, §12) cross to Rust as raw IPC bodies, a 32 MB slice at a time, into a
+temporary file beside the destination that is renamed over it only at the end.
+A view passed to `invoke` sends only its own bytes (Tauri's IPC hands it to
+`fetch` as the body), so a 2 GB deck is never copied into one buffer.
+
+### Testing it
+
+- `test/localvideo.test.ts`: the rewrite against both fixtures, every CRC.
+- `cargo run --example fetch_probe -- <empty dir>`: all three tools through the
+  real fetch path, including the macOS ffmpeg redirect.
+- `cargo run --example download_probe -- <tools dir> <out dir> <url> [height]`:
+  the app's own yt-dlp run, without the app.
+- The Open and Save panels run in a separate macOS process that UI automation
+  may not drive. A **debug** build takes `PFM_DEBUG_OPEN=<deck>` (load at
+  start) and `PFM_DEBUG_SAVE_DIR=<folder>` (save without asking); release
+  builds compile both out. Launch the binary inside the debug `.app` so it has
+  a bundle id, and use `env -i` for a Finder-like PATH.
+
+## Notes
+
+`docs/NOTES.md` carries this repo's working notes — current status, decisions
+already made, and the traps that have actually bitten. Read it before changing
+anything non-obvious. Cross-cutting fleet knowledge lives in
+[fleet-notes](https://github.com/stoatworks-labs/fleet-notes).

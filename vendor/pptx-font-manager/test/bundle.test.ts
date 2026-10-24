@@ -1,0 +1,325 @@
+import { describe, it, expect } from 'vitest'
+import { unzipSync, strFromU8 } from 'fflate'
+import { buildBundle, bundleFilename, type BundleEntry } from '../src/core/bundle'
+
+const fakeTtf = (n: number) => {
+  const d = new Uint8Array(n)
+  d.set([0x00, 0x01, 0x00, 0x00])
+  return d
+}
+
+const freeEntry: BundleEntry = {
+  filename: 'Poppins-Regular.ttf',
+  data: fakeTtf(64),
+  family: 'Poppins',
+  source: 'google',
+  license: 'OFL-1.1',
+  redistributable: true,
+  provenance: 'Google Fonts (OFL-1.1)',
+}
+
+const restrictedEntry: BundleEntry = {
+  filename: 'HelveticaNeue.ttf',
+  data: fakeTtf(48),
+  family: 'Helvetica Neue',
+  source: 'local',
+  license: 'Proprietary / unknown — check the foundry terms',
+  redistributable: false,
+  provenance: 'copied from this machine',
+}
+
+const metricSubstitute: BundleEntry = {
+  filename: 'Carlito-Regular.ttf',
+  data: fakeTtf(72),
+  family: 'Carlito',
+  source: 'substitute',
+  license: 'OFL-1.1',
+  redistributable: true,
+  provenance: 'Google Fonts (OFL-1.1), as a stand-in for Calibri',
+  substituteFor: { target: 'Calibri', metric: true },
+}
+
+const similarSubstitute: BundleEntry = {
+  filename: 'OpenSans-Regular.ttf',
+  data: fakeTtf(72),
+  family: 'Open Sans',
+  source: 'substitute',
+  license: 'OFL-1.1',
+  redistributable: true,
+  provenance: 'Google Fonts (OFL-1.1), as a stand-in for Segoe UI',
+  substituteFor: { target: 'Segoe UI', metric: false },
+}
+
+function open(zip: Uint8Array) {
+  const files = unzipSync(zip)
+  return { files, text: (n: string) => strFromU8(files[n]!) }
+}
+
+describe('buildBundle', () => {
+  it('lays out fonts, installers and docs', () => {
+    const { files } = open(buildBundle({ deckName: 'Deck.pptx', entries: [freeEntry], unavailable: [] }))
+    expect(Object.keys(files).sort()).toEqual([
+      'MANIFEST.txt',
+      'README.txt',
+      'fonts/Poppins-Regular.ttf',
+      'install-fonts.cmd',
+      'install-fonts.command',
+      'install-fonts.ps1',
+      'install-fonts.sh',
+    ])
+  })
+
+  it('separates redistributable fonts from restricted ones, and warns loudly', () => {
+    const { text } = open(
+      buildBundle({
+        deckName: 'Deck.pptx',
+        entries: [freeEntry, restrictedEntry],
+        unavailable: [],
+      }),
+    )
+    const manifest = text('MANIFEST.txt')
+    expect(manifest).toContain('FREE TO REDISTRIBUTE')
+    expect(manifest).toContain('*** RESTRICTED — DO NOT REDISTRIBUTE ***')
+    // The restricted font is still included — "everything, with warnings".
+    expect(manifest).toContain('HelveticaNeue.ttf')
+    expect(manifest).toContain('Poppins-Regular.ttf')
+    expect(manifest).toMatch(/permission to EMBED[\s\S]*is not permission to extract/i)
+  })
+
+  it('records fonts it could not include, with the reason', () => {
+    const { text } = open(
+      buildBundle({
+        deckName: 'Deck.pptx',
+        entries: [freeEntry],
+        unavailable: [{ name: 'Corbel', reason: 'MicroType Express compressed' }],
+      }),
+    )
+    const manifest = text('MANIFEST.txt')
+    expect(manifest).toContain('NOT INCLUDED')
+    expect(manifest).toContain('Corbel')
+    expect(manifest).toContain('MicroType Express compressed')
+  })
+
+  it('does not lose a font when two files share a name', () => {
+    const dup = { ...freeEntry, family: 'Other', data: fakeTtf(32) }
+    const { files } = open(
+      buildBundle({ deckName: 'D.pptx', entries: [freeEntry, dup], unavailable: [] }),
+    )
+    expect(files['fonts/Poppins-Regular.ttf']).toBeTruthy()
+    expect(files['fonts/Poppins-Regular-2.ttf']).toBeTruthy()
+  })
+
+  it('documents both platform traps in the README', () => {
+    const { text } = open(buildBundle({ deckName: 'D.pptx', entries: [freeEntry], unavailable: [] }))
+    const readme = text('README.txt')
+    // macOS Gatekeeper quarantine.
+    expect(readme).toContain('xattr -d com.apple.quarantine')
+    expect(readme).toMatch(/unidentified developer/i)
+    // Windows Mark-of-the-Web: users must run the .cmd, not the .ps1.
+    expect(readme).toContain('install-fonts.cmd')
+    expect(readme).toMatch(/NOT\s+install-fonts\.ps1/)
+    // And the no-script escape hatch on both.
+    expect(readme).toMatch(/Font Book/)
+  })
+
+  it('gives the shell installers an executable mode', () => {
+    const zip = buildBundle({ deckName: 'D.pptx', entries: [freeEntry], unavailable: [] })
+    // External attributes live in the central directory; check the unix mode
+    // bits survived by looking for the 0755 pattern in the raw zip.
+    const files = unzipSync(zip)
+    expect(files['install-fonts.command']).toBeTruthy()
+    expect(strFromU8(files['install-fonts.command']!)).toMatch(/^#!\/bin\/bash/)
+    expect(strFromU8(files['install-fonts.sh']!)).toMatch(/^#!\/bin\/sh/)
+  })
+
+  it('writes CRLF line endings for the Windows scripts', () => {
+    const { text } = open(buildBundle({ deckName: 'D.pptx', entries: [freeEntry], unavailable: [] }))
+    expect(text('install-fonts.cmd')).toContain('\r\n')
+    expect(text('install-fonts.ps1')).toContain('\r\n')
+    // ...and LF for the unix ones, or bash chokes on the carriage returns.
+    expect(text('install-fonts.command')).not.toContain('\r\n')
+    expect(text('install-fonts.sh')).not.toContain('\r\n')
+  })
+})
+
+describe('substitutions in the manifest', () => {
+  const build = (entries: BundleEntry[]) =>
+    open(buildBundle({ deckName: 'D.pptx', entries, unavailable: [] })).text('MANIFEST.txt')
+
+  it('says plainly that a substitute is not the font the deck asked for', () => {
+    const m = build([metricSubstitute])
+    expect(m).toContain('SUBSTITUTIONS — these are NOT the fonts the deck asks for')
+    expect(m).toContain('stands in for: Calibri')
+  })
+
+  it('states that a metric-compatible swap preserves the layout', () => {
+    expect(build([metricSubstitute])).toContain('SAME as the original')
+  })
+
+  it('warns that a non-metric swap will reflow the deck', () => {
+    const m = build([similarSubstitute])
+    expect(m).toContain('DIFFERENT — line breaks will move')
+    // The extra paragraph only fires when something really will reflow, so a
+    // bundle of purely metric swaps does not cry wolf.
+    expect(m).toContain('check for text that has reflowed')
+    expect(build([metricSubstitute])).not.toContain('check for text that has reflowed')
+  })
+
+  it('keeps substitutes out of the plain free list, so they cannot be read as the real font', () => {
+    const m = build([freeEntry, metricSubstitute])
+    const subsAt = m.indexOf('SUBSTITUTIONS')
+    const freeAt = m.indexOf('FREE TO REDISTRIBUTE')
+    expect(subsAt).toBeGreaterThan(-1)
+    expect(freeAt).toBeGreaterThan(-1)
+    // Substitutions come first: the swap is the thing you must not miss.
+    expect(subsAt).toBeLessThan(freeAt)
+    const freeSection = m.slice(freeAt)
+    expect(freeSection).toContain('Poppins-Regular.ttf')
+    expect(freeSection).not.toContain('Carlito-Regular.ttf')
+  })
+
+  it('still counts substitutes in the file total', () => {
+    expect(build([freeEntry, metricSubstitute])).toContain('2 font file(s) included.')
+  })
+})
+
+describe('bundleFilename', () => {
+  it('drops the extension and keeps the deck name readable', () => {
+    expect(bundleFilename('Partner Summit.pptx')).toBe('Partner Summit — fonts.zip')
+  })
+
+  it('strips characters that break filesystems', () => {
+    expect(bundleFilename('a/b:c*d.pptx')).toBe('a_b_c_d — fonts.zip')
+  })
+})
+
+/**
+ * These pin the two things that were wrong until they were run on real
+ * Windows 11 (build 26200) — see AGENTS.md §8.2b. Both failures were silent:
+ * the font installed, and then either vanished from the registry or was
+ * invisible to every already-running application.
+ */
+describe('Windows installer', () => {
+  const ps1 = () => {
+    const files = unzipSync(
+      buildBundle({ deckName: 'D.pptx', entries: [freeEntry], unavailable: [] }),
+    )
+    return strFromU8(files['install-fonts.ps1']!)
+  }
+
+  it('names the registry value after the face, not the filename', () => {
+    const s = ps1()
+    // A value named from the filename (`Lobster-Regular (TrueType)`) did not
+    // survive; the shell writes the face name (`Lobster (TrueType)`).
+    expect(s).toContain('PrivateFontCollection')
+    expect(s).toContain('Get-FaceName')
+    expect(s).toMatch(/\$face\$suffix/)
+    expect(s).not.toMatch(/\$valueName = \[System\.IO\.Path\]::GetFileNameWithoutExtension/)
+  })
+
+  it('tells the OS a font arrived', () => {
+    const s = ps1()
+    // Copying the file and writing the value leaves running apps unaware.
+    expect(s).toContain('AddFontResourceW')
+    expect(s).toContain('SendMessageTimeout')
+    expect(s).toContain('0x001D') // WM_FONTCHANGE
+  })
+
+  it('never recreates the per-user font registry key', () => {
+    const s = ps1()
+    // `New-Item -Force` on an EXISTING registry key recreates it empty. On
+    // the Fonts key that unregisters every per-user font on the machine —
+    // measured on Windows 11 26200: 10 values before the line, 0 after. The
+    // files stay, so the damage only shows at the next sign-in. This is also
+    // what was once misread as "the registry value did not persist".
+    expect(s).not.toMatch(/New-Item\s[^\n]*\$regPath[^\n]*-Force/)
+    expect(s).not.toMatch(/New-Item\s[^\n]*-Force[^\n]*\$regPath/)
+    expect(s).toMatch(/if \(-not \(Test-Path \$regPath\)\)/)
+  })
+
+  it('tells the user a running browser needs a real restart, not a reload', () => {
+    const files = unzipSync(
+      buildBundle({ deckName: 'D.pptx', entries: [freeEntry], unavailable: [] }),
+    )
+    const readme = strFromU8(files['README.txt']!)
+    // Chromium reads the Windows font list once per browser process. A font
+    // installed while it runs stays invisible to every page — measured across
+    // reload, a new tab and queryLocalFonts — until the process restarts. The
+    // old wording claimed per-user fonts were never seen at all; they are.
+    expect(readme).toMatch(/BROWSERS NEED A REAL RESTART/i)
+    expect(readme).toMatch(/close the browser completely/i)
+    expect(readme).toMatch(/Startup boost/)
+    expect(readme).not.toMatch(/even after a restart/i)
+    // And the installer's own closing line says the same thing.
+    const s = ps1()
+    expect(s).toMatch(/only read the font list when they start/)
+    expect(s).not.toMatch(/do not pick up per-user fonts at all/)
+  })
+})
+
+/**
+ * A face extracted from the deck that PowerPoint had already cut down.
+ *
+ * This is the entry that most needs the manifest: it installs cleanly, renders
+ * the deck it came from, and then fails on the first character nobody typed.
+ */
+const partialEmbedded: BundleEntry = {
+  filename: 'CanvaSans.ttf',
+  data: fakeTtf(96),
+  family: 'Canva Sans',
+  source: 'embedded',
+  license: 'Embedded in the presentation — terms unknown',
+  redistributable: false,
+  provenance: 'extracted from ppt/fonts/font10.fntdata',
+  partialCoverage: { basicLatin: 31, total: 95 },
+}
+
+const completeEmbedded: BundleEntry = {
+  filename: 'WholeSans.ttf',
+  data: fakeTtf(96),
+  family: 'Whole Sans',
+  source: 'embedded',
+  license: 'Embedded in the presentation — terms unknown',
+  redistributable: false,
+  provenance: 'extracted from ppt/fonts/font11.fntdata',
+}
+
+const manifestOf = (entries: BundleEntry[]) => {
+  const zip = unzipSync(buildBundle({ deckName: 'Deck.pptx', entries, unavailable: [] }))
+  return strFromU8(zip['MANIFEST.txt']!)
+}
+
+describe('bundle manifest — incomplete embedded faces', () => {
+  it('calls out a subsetted face with its actual coverage', () => {
+    const m = manifestOf([partialEmbedded])
+    expect(m).toContain('INCOMPLETE')
+    expect(m).toContain('CanvaSans.ttf')
+    expect(m).toContain('31 of 95 basic Latin characters')
+    // The reader has to know what breaks, not just that something might.
+    expect(m).toMatch(/fail on any character it did not already contain/)
+  })
+
+  it('says nothing about coverage for a face that was not cut down', () => {
+    const m = manifestOf([completeEmbedded])
+    expect(m).not.toContain('INCOMPLETE')
+    expect(m).toContain('WholeSans.ttf')
+  })
+
+  it('warns before it lists filenames, and still lists the file', () => {
+    const m = manifestOf([freeEntry, partialEmbedded])
+    // Warning sections come before the inventory, so nobody reads a filename
+    // and stops there.
+    expect(m.indexOf('INCOMPLETE')).toBeLessThan(m.indexOf('FREE TO REDISTRIBUTE'))
+    // Still restricted: extracting from a deck is not a redistribution licence.
+    expect(m).toContain('RESTRICTED')
+  })
+
+  it('keeps substitutions and incomplete faces as separate warnings', () => {
+    const m = manifestOf([metricSubstitute, partialEmbedded])
+    expect(m).toContain('SUBSTITUTIONS')
+    expect(m).toContain('INCOMPLETE')
+    // A stand-in and a cut-down original are different problems with different
+    // fixes; collapsing them would lose which one the reader has.
+    expect(m.indexOf('SUBSTITUTIONS')).toBeLessThan(m.indexOf('INCOMPLETE'))
+  })
+})
