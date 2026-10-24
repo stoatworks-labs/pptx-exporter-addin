@@ -565,6 +565,23 @@ async function remoteProbe(job: RemoteJob): Promise<unknown> {
       out[`canvas ${w}x${h}`] = `FAIL ${(e as Error).message} ${Math.round(performance.now() - t0)} ms`
     }
   }
+  // How long getFileAsync takes to hand over the deck: the whole of it, every
+  // time, before anything that reads media can start.
+  for (let i = 1; i <= (job.file ?? 0); i++) {
+    const t0 = performance.now()
+    let first = 0
+    let slices = 0
+    try {
+      const bytes = await host!.pptx((p) => {
+        if (!first) first = performance.now() - t0
+        slices = p.total
+      })
+      const s = (performance.now() - t0) / 1000
+      out[`file #${i}`] = `ok ${bytes.length} bytes, ${slices} slices, first slice ${Math.round(first)} ms, ${s.toFixed(1)} s, ${(bytes.length / 1048576 / s).toFixed(1)} MB/s`
+    } catch (e) {
+      out[`file #${i}`] = `FAIL ${(e as Error).message} ${Math.round(performance.now() - t0)} ms`
+    }
+  }
   return out
 }
 

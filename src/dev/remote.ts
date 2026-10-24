@@ -14,6 +14,8 @@ export interface RemoteJob {
   /** probe: slide widths to ask PowerPoint for (16:9), and canvas sizes to try. */
   widths?: number[]
   canvases?: [number, number][]
+  /** probe: read the deck through getFileAsync this many times, timing each. */
+  file?: number
   /** Format id → option values (missing values take the defaults). */
   formats?: Record<string, Record<string, string | number | boolean>>
   scope?: 'all' | 'selected' | 'range' | 'section'
