@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "@types/office-js": "^1.0.613",
+    "@types/office-js": "^1.0.614",
     "fast-png": "^8.0.0",
     "jsdom": "^30.1.3",
     "office-addin-dev-certs": "^3.0.1",
