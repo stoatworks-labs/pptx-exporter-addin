@@ -42,7 +42,7 @@
     "webm-muxer": "^5.1.4"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/office-js": "^1.0.614",
     "fast-png": "^8.0.0",
     "jsdom": "^30.1.3",
