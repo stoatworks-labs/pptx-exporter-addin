@@ -1,0 +1,17 @@
+# Advanced Exporter for PowerPoint
+
+> Every format PowerPoint exports, and the ones it won't
+
+A PowerPoint task-pane add-in that exports the open deck to 31 formats, each with its options left in: pictures at any size up to 16,384 pixels, PDFs trimmed to a range or split per slide, handouts and notes pages, Word and OpenDocument, MP4 and WebM with the deck's timings, a self-contained HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and Marp, outlines, CSV and JSON, and cleaned, trimmed or flattened copies of the deck itself. PowerPoint draws every slide at the size each format asks for, and everything happens in the pane, so nothing's uploaded.
+
+One manifest covers PowerPoint on Mac, Windows and the web, and installing it means handing PowerPoint one small XML file that points at the hosted build. This address is that hosted build: the page here is the install page, and PowerPoint loads the add-in's task pane from the same origin.
+
+It has been checked in PowerPoint for Mac. PowerPoint for Windows and on the web are in the manifest but haven't been tried yet.
+
+## Links
+
+- [Install page](https://pptx-exporter-addin.stoatworks-labs.com/): the manifest and the install steps
+- [manifest.xml](https://pptx-exporter-addin.stoatworks-labs.com/manifest.xml)
+- [Project page](https://stoatworks-labs.com/software/pptx-exporter-addin/)
+- [User guide](https://stoatworks-labs.com/software/pptx-exporter-addin/guide/)
+- [Source on GitHub](https://github.com/stoatworks-labs/pptx-exporter-addin) (MIT)

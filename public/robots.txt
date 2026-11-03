@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pptx-exporter-addin.stoatworks-labs.com/sitemap.xml

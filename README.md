@@ -17,6 +17,10 @@ web. PowerPoint draws every slide itself, at exactly the size each format asks f
 reads the rest (notes, hidden slides, transitions, links, video) out of the deck. Everything
 happens in the pane. Nothing is uploaded.
 
+The [project page](https://stoatworks-labs.com/software/pptx-exporter-addin/) has the download
+and the user guide. The add-in is hosted at <https://pptx-exporter-addin.stoatworks-labs.com>,
+which has the install steps.
+
 | Group | Formats |
 | --- | --- |
 | Images | PNG, JPEG, WebP, AVIF, TIFF (one per slide or multi-page; LZW, Deflate or PackBits), BMP, TGA, GIF, SVG with clickable links, contact sheet |
