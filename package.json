@@ -1,7 +1,7 @@
 {
   "name": "pptx-exporter-addin",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "A PowerPoint task-pane add-in that exports a deck to every format PowerPoint can, and the ones it can't: images at any size, PDFs and handouts, video and GIF, a self-contained HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and Marp, and more — each with its own options.",
   "license": "MIT",

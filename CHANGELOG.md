@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-11-08
 
 Installers: a signed, notarised Mac `.pkg` with an uninstaller `.pkg`, and a per-user Windows
 `Setup.exe` with an Installed apps entry. They put `manifest.xml` where PowerPoint looks for
