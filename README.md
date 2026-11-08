@@ -54,7 +54,7 @@ All builds, checksums and release notes: [github.com/stoatworks-labs/pptx-export
   seconds. Every file was checked with something other than the add-in (see
   [Testing](#testing)), and PowerPoint and Word opened the generated Office files without a
   repair prompt.
-- **Video bundle and media notes: checked on Mac, unreleased.** Exported inside PowerPoint for
+- **Video bundle and media notes: checked on Mac, released in v0.2.0.** Exported inside PowerPoint for
   Mac 16.112.3 from a 460 MB deck of video (with PNG and HTML5): the files came out of
   PowerPoint's own copy of the deck byte for byte, stored, and ffprobe reads them. That size is
   near the pane's limit: it reached about 7 GB, and the first attempt, before reading the deck
@@ -68,12 +68,27 @@ All builds, checksums and release notes: [github.com/stoatworks-labs/pptx-export
 
 ## Install
 
-1. Download [`manifest.xml`](https://pptx-exporter-addin.stoatworks-labs.com/manifest.xml).
-2. **PowerPoint for Mac:** copy it into
-   `~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/`, quit PowerPoint and
-   reopen it, then **Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter**.
-3. **PowerPoint on the web, and Microsoft 365 on Windows:** **Home ▸ Add-ins ▸ More Add-ins ▸ My
-   Add-ins ▸ Upload My Add-in**, and pick the file.
+Run the installer for your machine. Each one adds Advanced Exporter to PowerPoint for your user
+account only, with no admin password, and needs PowerPoint closed.
+
+- **Mac:** [`Advanced-Exporter-for-PowerPoint.pkg`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint.pkg),
+  signed and notarised. When macOS asks whether Installer may access data from other apps,
+  choose **Allow**: that's it reaching PowerPoint's add-ins folder. Open PowerPoint and a deck,
+  then **Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter**. That also puts an *Advanced
+  Exporter* button on the Home tab, but only until PowerPoint quits: the next time, it's
+  Home ▸ Add-ins again. To remove it, run
+  [`Uninstall-Advanced-Exporter-for-PowerPoint.pkg`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Uninstall-Advanced-Exporter-for-PowerPoint.pkg).
+- **Windows:** [`Advanced-Exporter-for-PowerPoint-Setup.exe`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint-Setup.exe).
+  It isn't code-signed yet, so SmartScreen will say it doesn't recognise it (**More info ▸ Run
+  anyway**). Remove it from **Settings ▸ Apps ▸ Installed apps**. Untested on a real Windows
+  PowerPoint so far.
+- **PowerPoint on the web** (or Microsoft 365 on Windows without the installer): download
+  [`manifest.xml`](https://pptx-exporter-addin.stoatworks-labs.com/manifest.xml), then
+  **Home ▸ Add-ins ▸ More Add-ins ▸ My Add-ins ▸ Upload My Add-in**.
+
+The add-in itself is hosted at **https://pptx-exporter-addin.stoatworks-labs.com**, and all an
+installer does is point PowerPoint there (see [Installers](#installers)), so every deploy reaches
+every installed copy and nobody re-runs an installer to update.
 
 ## Findings
 

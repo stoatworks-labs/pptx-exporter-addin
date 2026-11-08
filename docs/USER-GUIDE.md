@@ -6,9 +6,10 @@ a range of slides), video, an HTML5 presentation, LaTeX, Markdown, and cleaned-u
 deck itself. It sits in a pane beside the deck. You tick the formats you want, set each one's
 options, press **Export**, and PowerPoint asks where to save the file.
 
-> **Released at v0.1.0.** The hosted build, which is what `manifest.xml` installs, opens and
-> exports in PowerPoint for Mac. The full run below used the development build of the same
-> code.
+> **Released at v0.2.0, with installers for Mac and Windows.** The hosted build, which is what
+> the installers and `manifest.xml` point PowerPoint at, opens and exports in PowerPoint for
+> Mac, and the Mac installer and uninstaller were run in Installer.app. The full run below used
+> the development build of the same code.
 >
 > **Checked in PowerPoint for Mac 16.112.3 on macOS 26.4.1 (2026-10-20):** every format below
 > was exported from a real deck inside PowerPoint, and every file was checked with something
@@ -19,14 +20,14 @@ options, press **Export**, and PowerPoint asks where to save the file.
 > one-slide file and the OpenDocument file with no repair prompt. Word opened the notes
 > document. The **Export** button raised the native Save dialog.
 >
-> **Not checked:** PowerPoint for Windows, PowerPoint on the web, and PowerPoint older than
+> **Not checked:** PowerPoint for Windows and its installer, PowerPoint on the web, and PowerPoint older than
 > 16.96 on a Mac (the PDF route those would use was run in PowerPoint for Mac). The HTML5
 > presentation was played in a Chromium browser, but not in Safari, not opened from a file on
 > disk, and its presenter view was only tried in one window. The pdfLaTeX output hasn't been
 > compiled (only XeLaTeX), and the transitions and links in the flattened deck were checked in
 > its XML, not by playing it.
 >
-> **Video bundle and the media notes (2026-10-24), not yet released:** exported inside
+> **Video bundle and the media notes (2026-10-24), new in v0.2.0:** exported inside
 > PowerPoint for Mac 16.112.3, with PNG and the HTML5 presentation, from a 460 MB deck of three
 > films, a WAV, a trim and a hidden slide reusing a film. The four files came out of PowerPoint's
 > own copy of the deck byte for byte the same as the originals, stored rather than deflated;
@@ -37,23 +38,45 @@ options, press **Export**, and PowerPoint asks where to save the file.
 
 ## Install
 
-The add-in installs from one small file, `manifest.xml`, which points PowerPoint at the
-add-in's web address. Nothing is installed on your machine.
+There's an installer for the Mac and one for Windows, both on the install page
+(<https://pptx-exporter-addin.stoatworks-labs.com>) and the latest GitHub release. Each adds
+the add-in to PowerPoint for your user account only, with no admin password. All an installer
+does is hand PowerPoint one small file, `manifest.xml`, which points it at the add-in's web
+address, so the add-in keeps itself up to date and you never need to run the installer again.
 
 **PowerPoint for Mac**
 
-1. Download `manifest.xml` from the install page or the latest GitHub release.
-2. Copy it into `~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/` (make the
-   `wef` folder if it isn't there).
-3. Quit PowerPoint completely and open it again.
-4. Open a deck, then **Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter**. That also
-   puts an **Advanced Exporter** button on the Home tab until PowerPoint quits; next time,
-   start from **Home ▸ Add-ins** again.
+1. Open `Advanced-Exporter-for-PowerPoint.pkg`. It's signed and notarised, and asks you to quit
+   PowerPoint if it's open. PowerPoint has to have been opened at least once on this Mac.
+2. When macOS asks whether **Installer** may access data from other apps, choose **Allow**.
+   That's the installer reaching PowerPoint's add-ins folder, which lives inside PowerPoint's
+   own storage.
+3. Open PowerPoint and a deck, then **Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter**.
+   That also puts an **Advanced Exporter** button on the Home tab until PowerPoint quits; next
+   time, start from **Home ▸ Add-ins** again.
+4. To remove it, open `Uninstall-Advanced-Exporter-for-PowerPoint.pkg`. It asks the same
+   question about other apps' data.
 
-**PowerPoint on the web, and Microsoft 365 on Windows**
+**PowerPoint for Windows**
 
-1. **Home ▸ Add-ins ▸ More Add-ins**, then **My Add-ins ▸ Upload My Add-in**.
-2. Pick `manifest.xml`.
+1. Close PowerPoint and run `Advanced-Exporter-for-PowerPoint-Setup.exe`. It isn't code-signed
+   yet, so SmartScreen will say it doesn't recognise it: **More info ▸ Run anyway**.
+2. Open PowerPoint and a deck. Advanced Exporter has a button on the Home tab; if it isn't
+   there, choose **Home ▸ Add-ins** and pick it from your add-ins.
+3. To remove it, uninstall **Advanced Exporter for PowerPoint** from **Settings ▸ Apps ▸
+   Installed apps**.
+
+The Windows installer hasn't been run on a real copy of PowerPoint for Windows yet.
+
+**PowerPoint on the web**
+
+1. Download `manifest.xml` from the install page.
+2. **Home ▸ Add-ins ▸ More Add-ins**, then **My Add-ins ▸ Upload My Add-in**, and pick it. The
+   same works in Microsoft 365 on Windows if you'd rather not run an installer.
+
+**By hand.** On a Mac, copying `manifest.xml` into
+`~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/` and restarting PowerPoint
+does what the installer does.
 
 ## Using it
 

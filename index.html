@@ -4,13 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Advanced Exporter for PowerPoint — add-in</title>
-    <meta name="description" content="A free PowerPoint add-in that exports the open deck to 31 formats with their options left in: pictures at any size, PDFs and handouts, video, HTML5, reveal.js, LaTeX Beamer, Markdown." />
+    <meta name="description" content="A free PowerPoint add-in that exports the open deck to 32 formats with their options left in: pictures at any size, PDFs, handouts, video, HTML5, LaTeX, Markdown. Installs with a double-click." />
     <link rel="canonical" href="https://pptx-exporter-addin.stoatworks-labs.com/" />
     <link rel="icon" href="/icons/icon-64.png" type="image/png" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Stoatworks Labs" />
     <meta property="og:title" content="Advanced Exporter for PowerPoint — add-in" />
-    <meta property="og:description" content="A free PowerPoint add-in that exports the open deck to 31 formats with their options left in: pictures at any size, PDFs and handouts, video, HTML5, reveal.js, LaTeX Beamer, Markdown." />
+    <meta property="og:description" content="A free PowerPoint add-in that exports the open deck to 32 formats with their options left in: pictures at any size, PDFs, handouts, video, HTML5, LaTeX, Markdown. Installs with a double-click." />
     <meta property="og:url" content="https://pptx-exporter-addin.stoatworks-labs.com/" />
     <meta property="og:image" content="https://stoatworks-labs.com/thumbs/pptx-exporter-addin.png" />
     <meta property="og:image:width" content="1280" />
@@ -24,7 +24,7 @@
         "@id": "https://pptx-exporter-addin.stoatworks-labs.com#app",
         "name": "Advanced Exporter for PowerPoint",
         "url": "https://pptx-exporter-addin.stoatworks-labs.com",
-        "description": "A free PowerPoint add-in that exports the open deck to 31 formats with their options left in: pictures at any size, PDFs and handouts, video, HTML5, reveal.js, LaTeX Beamer, Markdown.",
+        "description": "A free PowerPoint add-in that exports the open deck to 32 formats with their options left in: pictures at any size, PDFs, handouts, video, HTML5, LaTeX, Markdown. Installs with a double-click.",
         "applicationCategory": "MultimediaApplication",
         "operatingSystem": "PowerPoint for Mac, Windows and the web",
         "softwareRequirements": "Microsoft PowerPoint",
@@ -73,7 +73,7 @@
       a { color: var(--brand); }
       code, kbd { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
       .lede { font-size: 17px; }
-      .cta { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 4px; padding: 10px 16px; border-radius: 6px; background: var(--brand); color: var(--brand-ink); font-weight: 600; text-decoration: none; }
+      .cta { display: inline-flex; align-items: center; gap: 8px; margin: 12px 8px 4px 0; padding: 10px 16px; border-radius: 6px; background: var(--brand); color: var(--brand-ink); font-weight: 600; text-decoration: none; }
       .cta:hover { filter: brightness(1.08); }
       .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 10px 0; }
@@ -97,12 +97,13 @@
 
       <p class="lede">PowerPoint will save a deck as a PDF, a picture per slide or a video, and it asks you remarkably little about any of them. This add-in does all of those with the options left in — size, resolution, quality, slide range, letterboxing — and then carries on into the formats PowerPoint never got round to: a self-contained HTML5 presentation, reveal.js, LaTeX Beamer, Markdown and Marp, handouts, notes pages, and a few more.</p>
 
-      <a class="cta" href="/manifest.xml" download="manifest.xml">Download manifest.xml</a>
-      <p class="meta">One small XML file. It points PowerPoint at this site; nothing is installed on your machine and nothing about your deck leaves it. <a href="https://github.com/stoatworks-labs/pptx-exporter-addin">Source and issues on GitHub</a> · <a href="https://stoatworks-labs.com/software/pptx-exporter-addin/">Project page</a> · <a href="https://stoatworks-labs.com/software/pptx-exporter-addin/guide/">User guide</a></p>
+      <a class="cta" href="https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint.pkg">Download for Mac</a>
+      <a class="cta" href="https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint-Setup.exe">Download for Windows</a>
+      <p class="meta">A small installer that adds the add-in to PowerPoint for your account, with no admin password. The add-in itself runs from this site, so it keeps itself up to date, and nothing about your deck leaves your machine. PowerPoint on the web: <a href="/manifest.xml" download="manifest.xml">manifest.xml</a>. <a href="https://github.com/stoatworks-labs/pptx-exporter-addin">Source and issues on GitHub</a> · <a href="https://stoatworks-labs.com/software/pptx-exporter-addin/">Project page</a> · <a href="https://stoatworks-labs.com/software/pptx-exporter-addin/guide/">User guide</a></p>
 
       <div class="card status" id="status">
         <h3>Where it has been tried</h3>
-        <p>Built and tested against PowerPoint for Mac 16.112. PowerPoint for Windows and on the web are in the manifest but haven't been run here. If you try either, <a href="https://github.com/stoatworks-labs/pptx-exporter-addin/issues">say how it went</a>.</p>
+        <p>Built and tested against PowerPoint for Mac 16.112, the Mac installer and uninstaller included. <strong>The Windows installer, PowerPoint for Windows and PowerPoint on the web haven't been run here yet.</strong> If you try any of them, <a href="https://github.com/stoatworks-labs/pptx-exporter-addin/issues">say how it went</a>.</p>
       </div>
 
       <h2>What it exports</h2>
@@ -118,20 +119,28 @@
       </div>
 
       <h2>Install</h2>
-      <p>Office add-ins install from a manifest. Download the file above, then:</p>
 
       <h3>PowerPoint for Mac</h3>
       <ol>
-        <li>Copy <code>manifest.xml</code> into <code>~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/</code> (make the <code>wef</code> folder if it isn't there).</li>
-        <li>Quit PowerPoint completely (<kbd>⌘Q</kbd>) and open it again.</li>
-        <li>Open a deck, then <strong>Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter</strong>. That also puts an <strong>Advanced Exporter</strong> button on the Home tab until PowerPoint quits; next time, start from <strong>Home ▸ Add-ins</strong> again.</li>
+        <li>Open <a href="https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint.pkg"><code>Advanced-Exporter-for-PowerPoint.pkg</code></a>. It's signed and notarised, installs for your account only (no admin password), and asks to quit PowerPoint if it's open. PowerPoint has to have been opened at least once on this Mac.</li>
+        <li>When macOS asks whether <strong>Installer</strong> may access data from other apps, choose <strong>Allow</strong>. That's the installer reaching PowerPoint's add-ins folder, which lives inside PowerPoint's own storage. The uninstaller asks the same.</li>
+        <li>Open PowerPoint and a deck, then <strong>Home ▸ Add-ins ▸ Developer Add-ins ▸ Advanced Exporter</strong>. That also puts an <strong>Advanced Exporter</strong> button on the Home tab until PowerPoint quits; next time, start from <strong>Home ▸ Add-ins</strong> again.</li>
+        <li>To remove it, open <a href="https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Uninstall-Advanced-Exporter-for-PowerPoint.pkg"><code>Uninstall-Advanced-Exporter-for-PowerPoint.pkg</code></a>.</li>
       </ol>
 
-      <h3>PowerPoint on the web, and Microsoft 365 on Windows</h3>
+      <h3>PowerPoint for Windows</h3>
       <ol>
-        <li><strong>Home ▸ Add-ins ▸ More Add-ins</strong> (or <strong>Insert ▸ Add-ins</strong>), then <strong>My Add-ins ▸ Upload My Add-in</strong>.</li>
-        <li>Pick the downloaded <code>manifest.xml</code>. The pane opens from the Home tab.</li>
+        <li>Close PowerPoint and run <a href="https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint-Setup.exe"><code>Advanced-Exporter-for-PowerPoint-Setup.exe</code></a>. It installs for your account only, with no administrator prompt. It isn't code-signed yet, so SmartScreen will say it doesn't recognise it: <strong>More info ▸ Run anyway</strong>.</li>
+        <li>Open PowerPoint and a deck. Advanced Exporter has a button on the Home tab; if it isn't there, choose <strong>Home ▸ Add-ins</strong> and pick it from your add-ins.</li>
+        <li>To remove it, uninstall <strong>Advanced Exporter for PowerPoint</strong> from <strong>Settings ▸ Apps ▸ Installed apps</strong>.</li>
       </ol>
+
+      <h3>PowerPoint on the web</h3>
+      <ol>
+        <li>Download <a href="/manifest.xml" download="manifest.xml"><code>manifest.xml</code></a>.</li>
+        <li><strong>Home ▸ Add-ins ▸ More Add-ins</strong> (or <strong>Insert ▸ Add-ins</strong>), then <strong>My Add-ins ▸ Upload My Add-in</strong>, and pick it. The pane opens from the Home tab. The same works in Microsoft 365 on Windows if you'd rather not run an installer.</li>
+      </ol>
+      <p class="fine">All the installers do is put <code>manifest.xml</code> where PowerPoint looks for add-ins: on a Mac, <code>~/Library/Containers/com.microsoft.Powerpoint/Data/Documents/wef/</code>; on Windows, a registry value under <code>HKCU\Software\Microsoft\Office\16.0\Wef\Developer</code>. Doing it by hand works just as well, and Font Manager for PowerPoint installs beside it without either touching the other.</p>
 
       <h2>The honest limits</h2>
       <div class="card">
