@@ -8,8 +8,9 @@ options, press **Export**, and PowerPoint asks where to save the file.
 
 > **Released at v0.2.0, with installers for Mac and Windows.** The hosted build, which is what
 > the installers and `manifest.xml` point PowerPoint at, opens and exports in PowerPoint for
-> Mac, and the Mac installer and uninstaller were run in Installer.app. The full run below used
-> the development build of the same code.
+> Mac, and the Mac installer and uninstaller were run in Installer.app. The Windows installer
+> has been tried on Windows and works. The full run below used the development build of the
+> same code.
 >
 > **Checked in PowerPoint for Mac 16.112.3 on macOS 26.4.1 (2026-10-20):** every format below
 > was exported from a real deck inside PowerPoint, and every file was checked with something
@@ -20,8 +21,8 @@ options, press **Export**, and PowerPoint asks where to save the file.
 > one-slide file and the OpenDocument file with no repair prompt. Word opened the notes
 > document. The **Export** button raised the native Save dialog.
 >
-> **Not checked:** PowerPoint for Windows and its installer, PowerPoint on the web, and PowerPoint older than
-> 16.96 on a Mac (the PDF route those would use was run in PowerPoint for Mac). The HTML5
+> **Not checked:** the formats in PowerPoint for Windows, PowerPoint on the web, and PowerPoint
+> older than 16.96 on a Mac (the PDF route those would use was run in PowerPoint for Mac). The HTML5
 > presentation was played in a Chromium browser, but not in Safari, not opened from a file on
 > disk, and its presenter view was only tried in one window. The pdfLaTeX output hasn't been
 > compiled (only XeLaTeX), and the transitions and links in the flattened deck were checked in
@@ -66,7 +67,7 @@ address, so the add-in keeps itself up to date and you never need to run the ins
 3. To remove it, uninstall **Advanced Exporter for PowerPoint** from **Settings ▸ Apps ▸
    Installed apps**.
 
-The Windows installer hasn't been run on a real copy of PowerPoint for Windows yet.
+The Windows installer has been tried on Windows and works.
 
 **PowerPoint on the web**
 

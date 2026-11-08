@@ -6,7 +6,7 @@ A PowerPoint task-pane add-in that exports the open deck to 32 formats, each wit
 
 One manifest covers PowerPoint on Mac, Windows and the web. It installs with a double-click: a signed .pkg on a Mac and a Setup.exe on Windows, each for your user account with no admin password, and all either does is hand PowerPoint one small XML file that points at the hosted build. PowerPoint on the web takes that file directly. This address is that hosted build: the page here is the install page, and PowerPoint loads the add-in's task pane from the same origin.
 
-It has been checked in PowerPoint for Mac, the Mac installer included. The Windows installer, PowerPoint for Windows and PowerPoint on the web haven't been tried yet.
+It has been checked in PowerPoint for Mac, the Mac installer included. The Windows installer has been tried on Windows and works; the formats haven't been checked one by one in PowerPoint for Windows, and PowerPoint on the web hasn't been tried.
 
 ## Links
 

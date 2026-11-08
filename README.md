@@ -80,8 +80,10 @@ The Windows builds are unsigned, so SmartScreen warns once.
   PowerPoint's own copy of the deck byte for byte, stored, and ffprobe reads them. That size is
   near the pane's limit: it reached about 7 GB, and the first attempt, before reading the deck
   into one buffer and letting the old copy go first, wedged WKWebView at 2.7 GB.
-- **Windows and the web: untested.** Both are in the manifest's host list. Nothing here has run
-  on them, because no machine here has desktop PowerPoint for Windows.
+- **Windows: the installer works; the formats aren't checked there.** The Setup.exe was run on
+  a Windows PC with desktop PowerPoint on 2026-11-08 and PowerPoint picked the add-in up. The
+  formats haven't been run through one by one there as they were on the Mac.
+- **The web: untested.** It's in the manifest's host list, but nothing here has run it.
 - **Hosted** at <https://pptx-exporter-addin.stoatworks-labs.com> since 2026-10-20. The
   production build was checked under its own CSP in a Chromium browser, then loaded in
   PowerPoint for Mac from the production manifest, where it opened and exported. The
@@ -101,8 +103,7 @@ account only, with no admin password, and needs PowerPoint closed.
   [`Uninstall-Advanced-Exporter-for-PowerPoint.pkg`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Uninstall-Advanced-Exporter-for-PowerPoint.pkg).
 - **Windows:** [`Advanced-Exporter-for-PowerPoint-Setup.exe`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint-Setup.exe).
   It isn't code-signed yet, so SmartScreen will say it doesn't recognise it (**More info ▸ Run
-  anyway**). Remove it from **Settings ▸ Apps ▸ Installed apps**. Untested on a real Windows
-  PowerPoint so far.
+  anyway**). Remove it from **Settings ▸ Apps ▸ Installed apps**. Tried on Windows and working.
 - **PowerPoint on the web** (or Microsoft 365 on Windows without the installer): download
   [`manifest.xml`](https://pptx-exporter-addin.stoatworks-labs.com/manifest.xml), then
   **Home ▸ Add-ins ▸ More Add-ins ▸ My Add-ins ▸ Upload My Add-in**.
@@ -258,8 +259,9 @@ What has been run, 2026-10-24, on macOS 26.4.1:
   install waited on it until Allow was chosen; a grant from one run didn't carry over to the next.
 - **PowerPoint after the GUI install:** Home ▸ Add-ins lists Advanced Exporter under Developer
   Add-ins beside Font Manager, and it opens the hosted pane (v0.1.0), which reads the deck.
-- **Windows: not run at all.** The Setup.exe compiles with warnings as errors, and its payload
-  unpacks to the identical manifest.
+- **Windows (2026-11-08):** the Setup.exe was run on a Windows PC and works: it installs, and
+  PowerPoint for Windows picks the add-in up. It compiles with warnings as errors, and its
+  payload unpacks to the identical manifest.
 
 Two build traps, both found building Font Manager's:
 
