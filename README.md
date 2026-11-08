@@ -36,13 +36,34 @@ Every option for every format is in the [user guide](docs/USER-GUIDE.md).
 
 ## Download
 
-**[v0.1.0](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/tag/v0.1.0)**
+**[v0.2.0](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/tag/v0.2.0)** — prebuilt for macOS and Windows. Pick your platform:
 
-This release contains:
+<details>
+<summary><b>macOS</b></summary>
 
-- [`manifest.xml`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/manifest.xml) — Office add-in manifest (sideload into PowerPoint), 5 KB
+| Build | Download | Size |
+| --- | --- | --- |
+| .pkg installer | [`Advanced-Exporter-for-PowerPoint.pkg`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint.pkg) | 22 KB |
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| .exe installer | [`Advanced-Exporter-for-PowerPoint-Setup.exe`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Advanced-Exporter-for-PowerPoint-Setup.exe) | 170 KB |
+
+</details>
+
+Also in this release:
+
+- [`manifest.xml`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/manifest.xml) — Office add-in manifest (for PowerPoint on the web), 5 KB
+- [`Uninstall-Advanced-Exporter-for-PowerPoint.pkg`](https://github.com/stoatworks-labs/pptx-exporter-addin/releases/latest/download/Uninstall-Advanced-Exporter-for-PowerPoint.pkg) — Uninstaller for macOS (.pkg), 20 KB
 
 All builds, checksums and release notes: [github.com/stoatworks-labs/pptx-exporter-addin/releases](https://github.com/stoatworks-labs/pptx-exporter-addin/releases).
+
+The Windows builds are unsigned, so SmartScreen warns once.
 
 <!-- downloads:end -->
 
