@@ -37,7 +37,7 @@
     "gifenc": "^1.0.3",
     "mp4-muxer": "^5.2.2",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.4.299",
+    "pdfjs-dist": "^6.5.438",
     "reveal.js": "^6.0.2",
     "webm-muxer": "^5.1.4"
   },
