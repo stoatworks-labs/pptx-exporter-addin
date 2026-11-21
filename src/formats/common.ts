@@ -1,6 +1,7 @@
 // Options and helpers several formats share.
 
 import type { Slide } from '../deck/model'
+import type { OverlayCopyOptions } from '../render/overlay-copy'
 import { frameFor, frameProblem, SIZE_CHOICES, type Fit, type Frame, type SizePreset } from '../render/sizing'
 import { checkCancel, type ExportContext, type OptionDef, type Values } from './types'
 
@@ -75,6 +76,60 @@ export function frameFromValues(ctx: ExportContext, v: Values): Frame {
 
 export function background(v: Values): string {
   return typeof v.background === 'string' ? v.background : '#000000'
+}
+
+// --- Transparent backgrounds (overlays) ---------------------------------------
+
+const on = (v: Values) => !!v.transparent
+
+/** The options a format that can carry alpha offers for leaving the slide's
+ * background out. `fillKey` adds the separate fill-and-key choice. */
+export function overlayOptions(fillKey: boolean): OptionDef[] {
+  const opts: OptionDef[] = [
+    {
+      key: 'transparent', label: 'Transparent background', type: 'toggle', default: false,
+      help: "Only what's on the slide, with an alpha channel: for overlays on video and in media servers. PowerPoint draws a copy of each slide on black and on white at the end of the deck, then deletes it; your slides aren't changed, but the copies are in PowerPoint's Undo history.",
+    },
+    {
+      key: 'masterGraphics', label: 'Keep layout and master graphics', type: 'toggle', default: false, when: on,
+      help: 'Logos, bars and other pictures that come from the slide layout or master rather than the slide itself.',
+    },
+    {
+      key: 'backPicture', label: 'Drop a full-slide picture at the back', type: 'toggle', default: false, when: on,
+      help: 'For decks whose background is a picture placed on the slide rather than set as the background.',
+    },
+  ]
+  if (fillKey) {
+    opts.push({
+      key: 'alphaAs', label: 'Alpha', type: 'select', default: 'file', when: on,
+      choices: [
+        { value: 'file', label: 'In the file' },
+        { value: 'pair', label: 'Separate fill and key files' },
+        { value: 'both', label: 'Both' },
+      ],
+      help: 'Fill and key for vision mixers and CG kit that take them as two signals: the fill is the slide on black (pre-multiplied), the key is white where it is solid.',
+    })
+  }
+  return opts
+}
+
+/** What to leave out, or null when the background stays. */
+export function overlayOf(v: Values): OverlayCopyOptions | null {
+  return v.transparent ? { masterGraphics: !!v.masterGraphics, dropBackPictures: !!v.backPicture } : null
+}
+
+/** Which files a transparent export writes: the picture with alpha, the fill
+ * and key pair, or both. */
+export function alphaFiles(v: Values): { alpha: boolean; pair: boolean } {
+  const as = v.transparent ? String(v.alphaAs ?? 'file') : 'file'
+  return { alpha: as !== 'pair', pair: !!v.transparent && as !== 'file' }
+}
+
+/** Size options for a format offering transparency: the letterbox colour
+ * means nothing when the bars are transparent too. */
+export function withOverlay(opts: OptionDef[], fillKey: boolean): OptionDef[] {
+  const size = opts.map((o) => (o.key === 'background' && o.when ? { ...o, when: (v: Values) => !v.transparent && o.when!(v) } : o))
+  return [...size, ...overlayOptions(fillKey)]
 }
 
 export const NAME_HELP = '{deck} the file name · {n} slide number · {nn}/{nnn} zero-padded · {title} slide title · {i} position in the export'

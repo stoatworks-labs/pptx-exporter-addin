@@ -5,6 +5,10 @@
 // pipeline can be driven and tested without PowerPoint — its slide pictures
 // are a crude drawing of the deck's text, not PowerPoint's rendering.
 
+import type { OverlayCopyOptions } from '../render/overlay-copy'
+
+export type { OverlayCopyOptions }
+
 export interface HostCapabilities {
   /** Slide.getImageAsBase64 — PowerPoint draws the slide (PowerPointApi 1.8). */
   slideImages: boolean
@@ -14,6 +18,9 @@ export interface HostCapabilities {
   exportSlide: boolean
   /** getSelectedSlides (PowerPointApi 1.5). */
   selection: boolean
+  /** Slides drawn on a solid background from a temporary copy, for
+   * transparent pictures: exportAsBase64 + insertSlidesFromBase64 (1.8). */
+  overlay: boolean
   /** Highest PowerPointApi set this host reports, for the status line. */
   apiVersion: string
 }
@@ -41,6 +48,15 @@ export interface Host {
   renderSlide(index: number, width: number, height: number): Promise<Uint8Array>
   /** One slide as a stand-alone .pptx. */
   exportSlide(index: number): Promise<Uint8Array>
+  /**
+   * PNGs of one slide on each of these solid backgrounds (#rrggbb), scaled to
+   * fit width × height, drawn from a temporary copy of the slide that is
+   * deleted again: the slide itself is never touched. For transparent
+   * pictures (render/matte.ts).
+   */
+  renderOnBackgrounds(index: number, width: number, height: number, colors: string[], opts: OverlayCopyOptions): Promise<Uint8Array[]>
+  /** Delete copies a renderOnBackgrounds left behind (the pane closed mid-export). */
+  sweepCopies(): Promise<number>
 }
 
 export function base64ToBytes(b64: string): Uint8Array {

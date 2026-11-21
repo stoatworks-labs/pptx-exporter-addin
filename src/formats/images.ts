@@ -6,16 +6,24 @@ import { encodeBmp, encodeTga, jpegWithDpi, pngWithDpi } from '../encode/simple'
 import { TiffWriter, type TiffCompression } from '../encode/tiff'
 import { encodeAvif, encodeWebp } from '../encode/wasm'
 import { canEncodeNatively, ctx2d, encodeNative, makeCanvas, rgba, type AnyCanvas } from '../render/canvas'
+import { fillAndKey } from '../render/matte'
 import { MAX_PIXELS, MAX_SIDE, type Frame } from '../render/sizing'
 import { bytesToBase64 } from '../host/types'
+import type { Slide } from '../deck/model'
 import { xmlEscape, xmlSafe } from '../lib/xml'
-import { background, eachSlide, expandName, frameFromValues, nameOption, sizeOptions } from './common'
+import { alphaFiles, background, eachSlide, expandName, frameFromValues, nameOption, overlayOf, sizeOptions, withOverlay } from './common'
 import { hotspots, linkHref, safeUrl } from './overlay'
-import { checkCancel, type FormatDef, type OptionDef, type Values } from './types'
+import { checkCancel, type ExportContext, type FormatDef, type OptionDef, type Values } from './types'
 
-type Encoder = (c: AnyCanvas, f: Frame, v: Values) => Promise<Uint8Array>
+/** `alpha`: keep the canvas's transparency (a transparent-background export);
+ * otherwise the canvas is opaque. */
+type Encoder = (c: AnyCanvas, f: Frame, v: Values, alpha: boolean) => Promise<Uint8Array>
 
-function imageDef(id: string, label: string, ext: string, blurb: string, extra: OptionDef[]): Omit<FormatDef, 'run'> {
+/** What a format can do with a transparent background: nothing, keep alpha
+ * in the file, or that and write fill and key files as well. */
+type Alpha = false | 'file' | 'fillkey'
+
+function imageDef(id: string, label: string, ext: string, blurb: string, extra: OptionDef[], alpha: Alpha = false): Omit<FormatDef, 'run'> {
   return {
     id,
     label,
@@ -24,19 +32,49 @@ function imageDef(id: string, label: string, ext: string, blurb: string, extra: 
     ext: `.${ext}`,
     needs: { images: true },
     media: 'still',
-    options: [...sizeOptions(), ...extra, nameOption('{deck}-{nn}')],
+    options: [...(alpha ? withOverlay(sizeOptions(), alpha === 'fillkey') : sizeOptions()), ...extra, nameOption('{deck}-{nn}')],
   }
 }
 
-/** One file per slide: build the frame, encode it. */
-function perSlide(id: string, label: string, ext: string, blurb: string, extra: OptionDef[], encode: Encoder): FormatDef {
+interface Picture {
+  /** Added to the file name: '' for the picture itself, -fill and -key. */
+  suffix: string
+  canvas: AnyCanvas
+  alpha: boolean
+}
+
+/** The pictures one slide makes: the slide as it is, or with its background
+ * left out (with alpha, as fill and key, or both). */
+async function slidePictures(ctx: ExportContext, s: Slide, f: Frame, v: Values): Promise<Picture[]> {
+  const ov = overlayOf(v)
+  if (!ov) return [{ suffix: '', canvas: await ctx.images.frame(s.index, f, background(v)), alpha: false }]
+  const c = await ctx.images.overlayFrame(s.index, f, ov)
+  const files = alphaFiles(v)
+  const out: Picture[] = []
+  if (files.alpha) out.push({ suffix: '', canvas: c, alpha: true })
+  if (files.pair) {
+    const { fill, key } = fillAndKey(rgba(c).data)
+    out.push({ suffix: '-fill', canvas: canvasOf(fill, c.width, c.height), alpha: false })
+    out.push({ suffix: '-key', canvas: canvasOf(key, c.width, c.height), alpha: false })
+  }
+  return out
+}
+
+function canvasOf(px: Uint8ClampedArray, w: number, h: number): AnyCanvas {
+  const c = makeCanvas(w, h)
+  ctx2d(c).putImageData(new ImageData(px as Uint8ClampedArray<ArrayBuffer>, w, h), 0, 0)
+  return c
+}
+
+/** One file per slide (or per fill and key): build the frame, encode it. */
+function perSlide(id: string, label: string, ext: string, blurb: string, extra: OptionDef[], encode: Encoder, alpha: Alpha = false): FormatDef {
   return {
-    ...imageDef(id, label, ext, blurb, extra),
+    ...imageDef(id, label, ext, blurb, extra, alpha),
     async run(ctx, v) {
       const f = frameFromValues(ctx, v)
       await eachSlide(ctx, async (s, i) => {
-        const c = await ctx.images.frame(s.index, f, background(v))
-        ctx.add(`${expandName(String(v.name), ctx, s, i)}.${ext}`, await encode(c, f, v))
+        const name = expandName(String(v.name), ctx, s, i)
+        for (const p of await slidePictures(ctx, s, f, v)) ctx.add(`${name}${p.suffix}.${ext}`, await encode(p.canvas, f, v, p.alpha))
       })
     },
   }
@@ -45,13 +83,18 @@ function perSlide(id: string, label: string, ext: string, blurb: string, extra: 
 const quality = (def: number): OptionDef => ({ key: 'quality', label: 'Quality', type: 'slider', min: 1, max: 100, step: 1, default: def })
 
 export const png: FormatDef = {
-  ...imageDef('png', 'PNG', 'png', 'Lossless. What PowerPoint drew, untouched when the size is the slide’s own shape.', []),
+  ...imageDef('png', 'PNG', 'png', 'Lossless. What PowerPoint drew, untouched when the size is the slide’s own shape — or with its background left out, for overlays.', [], 'fillkey'),
   async run(ctx, v) {
     const f = frameFromValues(ctx, v)
     await eachSlide(ctx, async (s, i) => {
-      // framePng hands PowerPoint's own PNG through when nothing needs compositing.
-      const bytes = await ctx.images.framePng(s.index, f, background(v))
-      ctx.add(`${expandName(String(v.name), ctx, s, i)}.png`, pngWithDpi(bytes, f.dpi))
+      const name = expandName(String(v.name), ctx, s, i)
+      if (!overlayOf(v)) {
+        // framePng hands PowerPoint's own PNG through when nothing needs compositing.
+        const bytes = await ctx.images.framePng(s.index, f, background(v))
+        ctx.add(`${name}.png`, pngWithDpi(bytes, f.dpi))
+        return
+      }
+      for (const p of await slidePictures(ctx, s, f, v)) ctx.add(`${name}${p.suffix}.png`, pngWithDpi(await encodeNative(p.canvas, 'image/png'), f.dpi))
     })
   },
 }
@@ -69,6 +112,7 @@ export const webp = perSlide(
     if (!v.lossless && (await canEncodeNatively('image/webp'))) return encodeNative(c, 'image/webp', Number(v.quality) / 100)
     return encodeWebp(rgba(c), Number(v.quality), !!v.lossless)
   },
+  'file',
 )
 
 export const avif = perSlide(
@@ -81,14 +125,16 @@ export const avif = perSlide(
     if (await canEncodeNatively('image/avif')) return encodeNative(c, 'image/avif', Number(v.quality) / 100)
     return encodeAvif(rgba(c), Number(v.quality), Number(v.speed))
   },
+  'file',
 )
 
 export const bmp = perSlide('bmp', 'BMP', 'bmp', '24-bit Windows bitmap, uncompressed — for the kit that still insists.', [],
   async (c, f) => encodeBmp(c.width, c.height, rgba(c).data, f.dpi))
 
-export const tga = perSlide('tga', 'TGA', 'tga', 'Targa, 24-bit — the still format older media servers and vision mixers load.',
+export const tga = perSlide('tga', 'TGA', 'tga', 'Targa, 24-bit, or 32-bit with a transparent background — the still format older media servers and vision mixers load.',
   [{ key: 'rle', label: 'Run-length compressed', type: 'toggle', default: true, help: 'Smaller. Turn it off for kit that only reads raw Targa.' }],
-  async (c, _f, v) => encodeTga(c.width, c.height, rgba(c).data, !!v.rle))
+  async (c, _f, v, alpha) => encodeTga(c.width, c.height, rgba(c).data, !!v.rle, alpha),
+  'fillkey')
 
 export const gif = perSlide('gif', 'GIF (still)', 'gif', '256 colours at most. Fine for diagrams, unkind to photos.',
   [
@@ -110,24 +156,30 @@ export const tiff: FormatDef = {
         ],
       },
       { key: 'multipage', label: 'One multi-page file', type: 'toggle', default: false },
-    ]),
+    ], 'fillkey'),
   async run(ctx, v) {
     const f = frameFromValues(ctx, v)
     const compression = v.compression as TiffCompression
     if (v.multipage) {
-      const w = new TiffWriter(compression, ctx.slides.length)
+      // One writer per file: the picture, and the fill and key when asked for.
+      const writers = new Map<string, TiffWriter>()
       await eachSlide(ctx, async (s) => {
-        const c = await ctx.images.frame(s.index, f, background(v))
-        w.addPage({ width: c.width, height: c.height, rgba: rgba(c).data, dpi: f.dpi })
+        for (const p of await slidePictures(ctx, s, f, v)) {
+          let w = writers.get(p.suffix)
+          if (!w) writers.set(p.suffix, (w = new TiffWriter(compression, ctx.slides.length)))
+          w.addPage({ width: p.canvas.width, height: p.canvas.height, rgba: rgba(p.canvas).data, dpi: f.dpi, alpha: p.alpha })
+        }
       })
-      ctx.add(`${ctx.base}.tif`, w.finish())
+      for (const [suffix, w] of writers) ctx.add(`${ctx.base}${suffix}.tif`, w.finish())
       return
     }
     await eachSlide(ctx, async (s, i) => {
-      const c = await ctx.images.frame(s.index, f, background(v))
-      const w = new TiffWriter(compression, 1)
-      w.addPage({ width: c.width, height: c.height, rgba: rgba(c).data, dpi: f.dpi })
-      ctx.add(`${expandName(String(v.name), ctx, s, i)}.tif`, w.finish())
+      const name = expandName(String(v.name), ctx, s, i)
+      for (const p of await slidePictures(ctx, s, f, v)) {
+        const w = new TiffWriter(compression, 1)
+        w.addPage({ width: p.canvas.width, height: p.canvas.height, rgba: rgba(p.canvas).data, dpi: f.dpi, alpha: p.alpha })
+        ctx.add(`${name}${p.suffix}.tif`, w.finish())
+      }
     })
   },
 }

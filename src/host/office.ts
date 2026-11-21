@@ -1,6 +1,12 @@
 // PowerPoint, through Office.js.
 
-import { base64ToBytes, type FileProgress, type Host, type HostCapabilities } from './types'
+import { overlayCopy } from '../render/overlay-copy'
+import { base64ToBytes, bytesToBase64, type FileProgress, type Host, type HostCapabilities, type OverlayCopyOptions } from './types'
+
+/** Marks the temporary slide copies overlays are drawn from, so one left
+ * behind (the pane closed mid-export) can be found and deleted. PowerPoint
+ * stores tag names in capitals whatever they are given in. */
+const COPY_TAG = 'STOATWORKS_EXPORTER_COPY'
 
 const API_VERSIONS = ['1.10', '1.9', '1.8', '1.7', '1.6', '1.5', '1.4', '1.3', '1.2', '1.1']
 
@@ -23,6 +29,8 @@ export class OfficeHost implements Host {
       slideImages: supported('1.8'),
       exportSlide: supported('1.8'),
       selection: supported('1.5'),
+      // exportAsBase64 (1.8), insertSlidesFromBase64 and delete (1.2), tags (1.3).
+      overlay: supported('1.8'),
       // Pdf is a Common API file type; PowerPoint on every platform offers it.
       pdf: true,
       apiVersion: top,
@@ -83,6 +91,82 @@ export class OfficeHost implements Host {
       const data = slide.exportAsBase64()
       await ctx.sync()
       return base64ToBytes(data.value)
+    })
+  }
+
+  async renderOnBackgrounds(index: number, width: number, height: number, colors: string[], opts: OverlayCopyOptions): Promise<Uint8Array[]> {
+    const source = await this.exportSlide(index)
+    const out: Uint8Array[] = []
+    for (const color of colors) out.push(await this.drawCopy(overlayCopy(source, color, opts).bytes, width, height))
+    return out
+  }
+
+  /** Insert a one-slide .pptx after the last slide, draw it, delete it. */
+  private drawCopy(pptx: Uint8Array, width: number, height: number): Promise<Uint8Array> {
+    return PowerPoint.run(async (ctx) => {
+      const before = ctx.presentation.slides
+      before.load('items/id')
+      await ctx.sync()
+      const had = new Set(before.items.map((s) => s.id))
+      const last = before.items[before.items.length - 1]
+      // The deck's own theme: the copy came from this deck, so its layout is
+      // here already, and nothing is left behind once the copy is deleted
+      // (keeping the source formatting would bring a second master along).
+      ctx.presentation.insertSlidesFromBase64(bytesToBase64(pptx), { formatting: 'UseDestinationTheme', targetSlideId: last?.id })
+      const after = ctx.presentation.slides
+      after.load('items/id')
+      await ctx.sync()
+      const added = after.items.filter((s) => !had.has(s.id))
+      if (added.length !== 1) {
+        for (const s of added) s.delete()
+        await ctx.sync()
+        throw new Error(`PowerPoint inserted ${added.length} slides for one slide's copy.`)
+      }
+      const copy = added[0]
+      let failed: unknown = null
+      try {
+        copy.tags.add(COPY_TAG, '1')
+        await ctx.sync()
+        const img = copy.getImageAsBase64({ width: Math.round(width), height: Math.round(height) })
+        await ctx.sync()
+        return base64ToBytes(img.value)
+      } catch (e) {
+        failed = e
+        throw e
+      } finally {
+        try {
+          copy.delete()
+          await ctx.sync()
+        } catch (e) {
+          // The drawing's own error matters more than the clean-up's; the
+          // tag lets the next pane find the copy.
+          if (!failed) throw new Error(`Could not delete the temporary copy of the slide at the end of the deck: ${(e as Error)?.message ?? e}`)
+        }
+      }
+    })
+  }
+
+  async sweepCopies(): Promise<number> {
+    if (!this.caps.overlay) return 0
+    return PowerPoint.run(async (ctx) => {
+      const slides = ctx.presentation.slides
+      slides.load('items/id')
+      await ctx.sync()
+      const tags = slides.items.map((s) => {
+        const t = s.tags.getItemOrNullObject(COPY_TAG)
+        t.load('value')
+        return t
+      })
+      await ctx.sync()
+      let n = 0
+      slides.items.forEach((s, i) => {
+        if (!tags[i].isNullObject) {
+          s.delete()
+          n++
+        }
+      })
+      if (n) await ctx.sync()
+      return n
     })
   }
 }

@@ -36,6 +36,17 @@ options, press **Export**, and PowerPoint asks where to save the file.
 > "linked" clip called `NULL` was fixed (PowerPoint writes that for a trimmed clip). It is heavy
 > going: the pane reached about 7 GB reading a deck that size, and an earlier attempt, before the
 > reading was slimmed down, wedged it at 2.7 GB. The same export ran in a Chromium browser too.
+>
+> **Transparent backgrounds (2026-11-21), not yet released:** exported inside PowerPoint for
+> Mac 16.112.3 on macOS 26.4.1 (PowerPointApi 1.10) from a four-slide test deck: a master
+> background and logo, a white title, a shadowed panel, a half-transparent box, a full-slide
+> picture, a gradient background and a hidden slide. PNG, WebP, AVIF, multi-page TIFF with fill
+> and key, and a TGA pair were read by Pillow; every solid pixel matched the normal export
+> exactly, the shadow and see-through fills came out partly transparent, and the master
+> background and logo were gone (kept with **Keep layout and master graphics**). A 5000 px export
+> was scaled up from PowerPoint's 4030 px ceiling with a note, and no copies were left in the
+> deck. Undo straight after an export brings a copy back, and the next export deleted it. Not
+> tried in PowerPoint for Windows or on the web.
 
 ## Install
 
@@ -113,6 +124,33 @@ on 16.112). Bigger pictures come from PowerPoint's own vector PDF, drawn at full
 an 8K export is as sharp as a 4K one. A hidden slide isn't in that PDF, so at those sizes it's
 PowerPoint's largest picture scaled up, and the export notes say so.
 
+### Transparent backgrounds
+
+PNG, WebP, AVIF, TIFF and TGA have **Transparent background**: only what's on the slide, with an
+alpha channel, for putting the slides over video, into a media server or into CG kit. Shadows,
+glows and see-through fills stay partly transparent, the way they look on the slide.
+
+- **Keep layout and master graphics** keeps logos, bars and other pictures that come from the
+  slide's layout or master. Without it, only what's on the slide itself is left.
+- **Drop a full-slide picture at the back** is for decks whose background is a picture placed on
+  the slide rather than set as the background.
+- **Alpha** (PNG, TIFF, TGA) can also write a separate **fill** and **key** for vision mixers
+  that take them as two signals: the fill is the slide on black, the key white where it's solid.
+
+How it works: PowerPoint draws a copy of each slide at the end of the deck twice, once on black
+and once on white, and the pane works out the alpha from the difference. The copy is deleted
+straight after. Your slides aren't changed and the view doesn't move, but:
+
+- **The copies are in PowerPoint's Undo history**, and the deck counts as edited, so PowerPoint
+  asks to save when you close it. Undo straight after an export puts a copy back at the end of
+  the deck. Copies are tagged, and the pane deletes any it finds the next time it reads the
+  deck; or delete it yourself.
+- **It needs PowerPoint to draw the slides.** It isn't there when **Slide pictures from** is
+  PowerPoint's PDF, or on PowerPoint without PowerPointApi 1.8 (Office LTSC).
+- **It can't go past PowerPoint's size limit.** PowerPoint's PDF has no transparency, so a
+  transparent picture wider than PowerPoint will draw (4030 px on a Mac) is scaled up, and the
+  notes say so.
+
 ### Things that don't come along
 
 - **Animations.** Every picture-based format shows a slide as it looks with all its builds
@@ -160,7 +198,7 @@ whatever the format, so it isn't the bundle being slow; it's just where you noti
 
 #### PNG (`.png`)
 
-Lossless. What PowerPoint drew, untouched when the size is the slide’s own shape.
+Lossless. What PowerPoint drew, untouched when the size is the slide’s own shape — or with its background left out, for overlays.
 
 | Option | Choices | Notes |
 | --- | --- | --- |
@@ -171,6 +209,10 @@ Lossless. What PowerPoint drew, untouched when the size is the slide’s own sha
 | Scale (shown when it applies) | 10–800 %, default **200** |  |
 | Fit (shown when it applies) | **Keep the slide's shape** · Exact size, letterboxed · Exact size, cropped to fill · Exact size, stretched | Only matters when the size isn't the slide's shape — a 4:3 deck into 1920 × 1080, say. |
 | Bars (shown when it applies) | default `#000000` |  |
+| Transparent background | off | Only what's on the slide, with an alpha channel: for overlays on video and in media servers. PowerPoint draws a copy of each slide on black and on white at the end of the deck, then deletes it; your slides aren't changed, but the copies are in PowerPoint's Undo history. |
+| Keep layout and master graphics (shown when it applies) | off | Logos, bars and other pictures that come from the slide layout or master rather than the slide itself. |
+| Drop a full-slide picture at the back (shown when it applies) | off | For decks whose background is a picture placed on the slide rather than set as the background. |
+| Alpha (shown when it applies) | **In the file** · Separate fill and key files · Both | Fill and key for vision mixers and CG kit that take them as two signals: the fill is the slide on black (pre-multiplied), the key is white where it is solid. |
 | File names | default `{deck}-{nn}` | {deck} the file name · {n} slide number · {nn}/{nnn} zero-padded · {title} slide title · {i} position in the export |
 
 #### JPEG (`.jpg`)
@@ -202,6 +244,9 @@ Smaller than JPEG at the same quality, or lossless and smaller than PNG.
 | Scale (shown when it applies) | 10–800 %, default **200** |  |
 | Fit (shown when it applies) | **Keep the slide's shape** · Exact size, letterboxed · Exact size, cropped to fill · Exact size, stretched | Only matters when the size isn't the slide's shape — a 4:3 deck into 1920 × 1080, say. |
 | Bars (shown when it applies) | default `#000000` |  |
+| Transparent background | off | Only what's on the slide, with an alpha channel: for overlays on video and in media servers. PowerPoint draws a copy of each slide on black and on white at the end of the deck, then deletes it; your slides aren't changed, but the copies are in PowerPoint's Undo history. |
+| Keep layout and master graphics (shown when it applies) | off | Logos, bars and other pictures that come from the slide layout or master rather than the slide itself. |
+| Drop a full-slide picture at the back (shown when it applies) | off | For decks whose background is a picture placed on the slide rather than set as the background. |
 | Quality | 1–100, default **85** |  |
 | Lossless | off |  |
 | File names | default `{deck}-{nn}` | {deck} the file name · {n} slide number · {nn}/{nnn} zero-padded · {title} slide title · {i} position in the export |
@@ -219,6 +264,9 @@ The smallest of the lot. Slow to encode — this runs in the pane, not on a GPU.
 | Scale (shown when it applies) | 10–800 %, default **200** |  |
 | Fit (shown when it applies) | **Keep the slide's shape** · Exact size, letterboxed · Exact size, cropped to fill · Exact size, stretched | Only matters when the size isn't the slide's shape — a 4:3 deck into 1920 × 1080, say. |
 | Bars (shown when it applies) | default `#000000` |  |
+| Transparent background | off | Only what's on the slide, with an alpha channel: for overlays on video and in media servers. PowerPoint draws a copy of each slide on black and on white at the end of the deck, then deletes it; your slides aren't changed, but the copies are in PowerPoint's Undo history. |
+| Keep layout and master graphics (shown when it applies) | off | Logos, bars and other pictures that come from the slide layout or master rather than the slide itself. |
+| Drop a full-slide picture at the back (shown when it applies) | off | For decks whose background is a picture placed on the slide rather than set as the background. |
 | Quality | 1–100, default **60** |  |
 | Encoder speed | 0–10, default **7** | 0 is smallest and slowest; 10 is quick and a bit bigger. |
 | File names | default `{deck}-{nn}` | {deck} the file name · {n} slide number · {nn}/{nnn} zero-padded · {title} slide title · {i} position in the export |
@@ -236,6 +284,10 @@ Lossless, with real DPI — for print shops and DTP. One file per slide, or one 
 | Scale (shown when it applies) | 10–800 %, default **200** |  |
 | Fit (shown when it applies) | **Keep the slide's shape** · Exact size, letterboxed · Exact size, cropped to fill · Exact size, stretched | Only matters when the size isn't the slide's shape — a 4:3 deck into 1920 × 1080, say. |
 | Bars (shown when it applies) | default `#000000` |  |
+| Transparent background | off | Only what's on the slide, with an alpha channel: for overlays on video and in media servers. PowerPoint draws a copy of each slide on black and on white at the end of the deck, then deletes it; your slides aren't changed, but the copies are in PowerPoint's Undo history. |
+| Keep layout and master graphics (shown when it applies) | off | Logos, bars and other pictures that come from the slide layout or master rather than the slide itself. |
+| Drop a full-slide picture at the back (shown when it applies) | off | For decks whose background is a picture placed on the slide rather than set as the background. |
+| Alpha (shown when it applies) | **In the file** · Separate fill and key files · Both | Fill and key for vision mixers and CG kit that take them as two signals: the fill is the slide on black (pre-multiplied), the key is white where it is solid. |
 | Compression | **LZW (reads everywhere)** · Deflate / ZIP (smaller) · PackBits · None |  |
 | One multi-page file | off |  |
 | File names | default `{deck}-{nn}` | {deck} the file name · {n} slide number · {nn}/{nnn} zero-padded · {title} slide title · {i} position in the export |
@@ -257,7 +309,7 @@ Lossless, with real DPI — for print shops and DTP. One file per slide, or one 
 
 #### TGA (`.tga`)
 
-Targa, 24-bit — the still format older media servers and vision mixers load.
+Targa, 24-bit, or 32-bit with a transparent background — the still format older media servers and vision mixers load.
 
 | Option | Choices | Notes |
 | --- | --- | --- |
@@ -268,6 +320,10 @@ Targa, 24-bit — the still format older media servers and vision mixers load.
 | Scale (shown when it applies) | 10–800 %, default **200** |  |
 | Fit (shown when it applies) | **Keep the slide's shape** · Exact size, letterboxed · Exact size, cropped to fill · Exact size, stretched | Only matters when the size isn't the slide's shape — a 4:3 deck into 1920 × 1080, say. |
 | Bars (shown when it applies) | default `#000000` |  |
+| Transparent background | off | Only what's on the slide, with an alpha channel: for overlays on video and in media servers. PowerPoint draws a copy of each slide on black and on white at the end of the deck, then deletes it; your slides aren't changed, but the copies are in PowerPoint's Undo history. |
+| Keep layout and master graphics (shown when it applies) | off | Logos, bars and other pictures that come from the slide layout or master rather than the slide itself. |
+| Drop a full-slide picture at the back (shown when it applies) | off | For decks whose background is a picture placed on the slide rather than set as the background. |
+| Alpha (shown when it applies) | **In the file** · Separate fill and key files · Both | Fill and key for vision mixers and CG kit that take them as two signals: the fill is the slide on black (pre-multiplied), the key is white where it is solid. |
 | Run-length compressed | on | Smaller. Turn it off for kit that only reads raw Targa. |
 | File names | default `{deck}-{nn}` | {deck} the file name · {n} slide number · {nn}/{nnn} zero-padded · {title} slide title · {i} position in the export |
 

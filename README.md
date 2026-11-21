@@ -23,7 +23,7 @@ which has the install steps.
 
 | Group | Formats |
 | --- | --- |
-| Images | PNG, JPEG, WebP, AVIF, TIFF (one per slide or multi-page; LZW, Deflate or PackBits), BMP, TGA, GIF, SVG with clickable links, contact sheet |
+| Images | PNG, JPEG, WebP, AVIF, TIFF (one per slide or multi-page; LZW, Deflate or PackBits), BMP, TGA, GIF, SVG with clickable links, contact sheet; transparent backgrounds with alpha (and fill and key) for overlays |
 | Documents | PowerPoint's vector PDF (trimmed to a range or split per slide), picture PDF (keeps hidden slides and links), handouts 1/2/3/4/6/9 to a page, notes pages, Word notes document, OpenDocument |
 | Web | HTML5 presentation with transitions, presenter view, links and the deck's own video; reveal.js; a scrolling page |
 | Video | MP4 (H.264, HEVC, AV1) and WebM (VP9, VP8, AV1) with the deck's timings and captions from the notes; animated GIF; the deck's own video and sound files in a .zip (Video bundle) |

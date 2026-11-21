@@ -1,4 +1,4 @@
-// A baseline TIFF writer: 8-bit RGB, one or many pages, uncompressed, LZW,
+// A baseline TIFF writer: 8-bit RGB or RGBA, one or many pages, uncompressed, LZW,
 // Deflate or PackBits, with the horizontal predictor for the two that gain
 // from it. Pure — unit tested by decoding the result with UTIF.
 
@@ -9,9 +9,12 @@ export type TiffCompression = 'none' | 'lzw' | 'deflate' | 'packbits'
 export interface TiffPage {
   width: number
   height: number
-  /** RGBA, 4 bytes a pixel (alpha is dropped — slides are opaque). */
+  /** RGBA, 4 bytes a pixel. Alpha is dropped unless `alpha` is set. */
   rgba: Uint8Array | Uint8ClampedArray
   dpi?: number
+  /** Keep the alpha channel, as unassociated alpha (ExtraSamples = 2): what
+   * Photoshop, After Effects and libtiff read as a transparent layer. */
+  alpha?: boolean
 }
 
 const COMPRESSION_CODE: Record<TiffCompression, number> = { none: 1, lzw: 5, deflate: 8, packbits: 32773 }
@@ -60,7 +63,8 @@ export class TiffWriter {
     const pageIndex = this.pageIndex++
     let offset = this.offset
     const { width, height } = page
-    const rowBytes = width * 3
+    const spp = page.alpha ? 4 : 3
+    const rowBytes = width * spp
     // Strips of about 256 KB uncompressed: small enough for every reader.
     const rowsPerStrip = Math.max(1, Math.min(height, Math.floor((256 * 1024) / rowBytes)))
     const stripOffsets: number[] = []
@@ -71,14 +75,17 @@ export class TiffWriter {
       for (let y = 0; y < rows; y++) {
         let si = (y0 + y) * width * 4
         let di = y * rowBytes
-        for (let x = 0; x < width; x++, si += 4, di += 3) {
-          raw[di] = page.rgba[si]
-          raw[di + 1] = page.rgba[si + 1]
-          raw[di + 2] = page.rgba[si + 2]
+        if (spp === 4) raw.set(page.rgba.subarray(si, si + rowBytes), di)
+        else {
+          for (let x = 0; x < width; x++, si += 4, di += 3) {
+            raw[di] = page.rgba[si]
+            raw[di + 1] = page.rgba[si + 1]
+            raw[di + 2] = page.rgba[si + 2]
+          }
         }
         if (predictor) {
           const rs = y * rowBytes
-          for (let i = rs + rowBytes - 1; i >= rs + 3; i--) raw[i] = (raw[i] - raw[i - 3]) & 0xff
+          for (let i = rs + rowBytes - 1; i >= rs + spp; i--) raw[i] = (raw[i] - raw[i - spp]) & 0xff
         }
       }
       let data: Uint8Array
@@ -103,11 +110,11 @@ export class TiffWriter {
       { tag: 254, type: LONG, values: [pages.length > 1 ? 2 : 0] },
       { tag: 256, type: LONG, values: [width] },
       { tag: 257, type: LONG, values: [height] },
-      { tag: 258, type: SHORT, values: [8, 8, 8] },
+      { tag: 258, type: SHORT, values: spp === 4 ? [8, 8, 8, 8] : [8, 8, 8] },
       { tag: 259, type: SHORT, values: [COMPRESSION_CODE[compression]] },
       { tag: 262, type: SHORT, values: [2] },
       { tag: 273, type: LONG, values: stripOffsets },
-      { tag: 277, type: SHORT, values: [3] },
+      { tag: 277, type: SHORT, values: [spp] },
       { tag: 278, type: LONG, values: [rowsPerStrip] },
       { tag: 279, type: LONG, values: stripCounts },
       { tag: 282, type: RATIONAL, values: [dpi, 1] },
@@ -118,6 +125,7 @@ export class TiffWriter {
       { tag: 305, type: ASCII, values: software },
     ]
     if (predictor) entries.push({ tag: 317, type: SHORT, values: [2] })
+    if (spp === 4) entries.push({ tag: 338, type: SHORT, values: [2] })
     entries.sort((a, b) => a.tag - b.tag)
 
     // IFD: count, 12-byte entries, next-IFD pointer; then out-of-line values.

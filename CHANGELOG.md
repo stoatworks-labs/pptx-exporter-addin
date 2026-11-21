@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+**Transparent backgrounds** for PNG, WebP, AVIF, TIFF and TGA: only what's on the slide, with
+an alpha channel, for overlays on video, in media servers and in CG kit. PowerPoint draws a
+temporary copy of each slide on black and on white at the end of the deck, and the pane works
+the alpha out from the difference, so shadows, glows and see-through fills come out right.
+Layout and master graphics (logos, bars) are left out unless you ask for them, and a full-slide
+picture at the back can be dropped too. PNG, TIFF and TGA can also write a separate fill and key
+for vision mixers. TIFF gains RGBA (unassociated alpha) and TGA a 32-bit form with a TGA 2.0
+extension area; without transparency both are as before.
+
+It needs PowerPoint to draw the slides (PowerPointApi 1.8), so it isn't there when slides come
+from PowerPoint's PDF or on Office LTSC, and pictures wider than PowerPoint will draw (about
+4,000 px) are scaled up, with a note. Your slides aren't changed, but the copies go through
+PowerPoint's Undo history and the deck counts as edited: Undo straight after an export brings a
+copy back. They're tagged, and the pane deletes any it finds whenever it next reads the deck.
+
+New option keys in saved presets: `transparent`, `masterGraphics`, `backPicture`, `alphaAs`.
+They default off, so existing presets export as before.
+
 ## 0.2.0 — 2026-11-08
 
 Installers: a signed, notarised Mac `.pkg` with an uninstaller `.pkg`, and a per-user Windows

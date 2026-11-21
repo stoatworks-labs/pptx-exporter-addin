@@ -32,43 +32,65 @@ export function encodeBmp(width: number, height: number, rgba: Uint8Array | Uint
   return out
 }
 
-/** Truevision TGA, 24-bit, top-left origin; optionally run-length encoded. */
-export function encodeTga(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray, rle = true): Uint8Array {
+/** Truevision TGA, 24-bit (or 32-bit with straight alpha), top-left origin;
+ * optionally run-length encoded. */
+export function encodeTga(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray, rle = true, alpha = false): Uint8Array {
   const header = new Uint8Array(18)
   header[2] = rle ? 10 : 2
   header[12] = width & 0xff
   header[13] = width >> 8
   header[14] = height & 0xff
   header[15] = height >> 8
-  header[16] = 24
-  header[17] = 0x20 // top-left origin
-  const footer = new TextEncoder().encode('\0\0\0\0\0\0\0\0TRUEVISION-XFILE.\0')
-  const body: number[] | Uint8Array = rle ? tgaRle(width, height, rgba) : tgaRaw(width, height, rgba)
-  const out = new Uint8Array(18 + body.length + footer.length)
+  header[16] = alpha ? 32 : 24
+  header[17] = 0x20 | (alpha ? 8 : 0) // top-left origin; 8 attribute (alpha) bits
+  // TGA 2.0 extension area, so readers know the alpha is straight (attribute
+  // type 3), not left over: some treat 32-bit Targa without it as opaque.
+  const ext = alpha ? tgaExtension() : new Uint8Array(0)
+  const bpp = alpha ? 4 : 3
+  const body: number[] | Uint8Array = rle ? tgaRle(width, height, rgba, bpp) : tgaRaw(width, height, rgba, bpp)
+  const extOffset = alpha ? 18 + body.length : 0
+  const footer = new Uint8Array(26)
+  new DataView(footer.buffer).setUint32(0, extOffset, true)
+  footer.set(new TextEncoder().encode('TRUEVISION-XFILE.\0'), 8)
+  const out = new Uint8Array(18 + body.length + ext.length + footer.length)
   out.set(header)
   out.set(body as ArrayLike<number>, 18)
-  out.set(footer, 18 + body.length)
+  out.set(ext, 18 + body.length)
+  out.set(footer, 18 + body.length + ext.length)
   return out
 }
 
-function tgaRaw(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray): Uint8Array {
-  const out = new Uint8Array(width * height * 3)
-  for (let i = 0, j = 0; i < width * height * 4; i += 4, j += 3) {
+/** A 495-byte TGA 2.0 extension area, empty but for the attributes type. */
+function tgaExtension(): Uint8Array {
+  const ext = new Uint8Array(495)
+  new DataView(ext.buffer).setUint16(0, 495, true)
+  ext[494] = 3 // useful alpha data present
+  return ext
+}
+
+function tgaRaw(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray, bpp: number): Uint8Array {
+  const out = new Uint8Array(width * height * bpp)
+  for (let i = 0, j = 0; i < width * height * 4; i += 4, j += bpp) {
     out[j] = rgba[i + 2]
     out[j + 1] = rgba[i + 1]
     out[j + 2] = rgba[i]
+    if (bpp === 4) out[j + 3] = rgba[i + 3]
   }
   return out
 }
 
-function tgaRle(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray): Uint8Array {
-  let out = new Uint8Array(width * height * 3 + Math.ceil((width * height) / 128) * 2 + 16)
+function tgaRle(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray, bpp: number): Uint8Array {
+  let out = new Uint8Array(width * height * bpp + Math.ceil((width * height) / 128) * 2 + 16)
   let o = 0
-  const px = (i: number) => (rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2]
+  // As one number per pixel; >>> 0 keeps 32-bit BGRA values positive.
+  const px = bpp === 4
+    ? (i: number) => ((rgba[i * 4 + 3] << 24) | (rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2]) >>> 0
+    : (i: number) => (rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2]
   const put = (v: number) => {
     out[o++] = v & 0xff
-    out[o++] = (v >> 8) & 0xff
-    out[o++] = (v >> 16) & 0xff
+    out[o++] = (v >>> 8) & 0xff
+    out[o++] = (v >>> 16) & 0xff
+    if (bpp === 4) out[o++] = (v >>> 24) & 0xff
   }
   // Packets never cross a scanline (the spec's recommendation; some readers insist).
   for (let y = 0; y < height; y++) {
@@ -93,7 +115,7 @@ function tgaRle(width: number, height: number, rgba: Uint8Array | Uint8ClampedAr
       for (let k = 0; k < lit; k++) put(px(i + k))
       i += lit
     }
-    if (o > out.length - width * 4 - 8) {
+    if (o > out.length - width * (bpp + 1) - 8) {
       const grown = new Uint8Array(out.length * 2)
       grown.set(out)
       out = grown

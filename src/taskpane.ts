@@ -161,6 +161,7 @@ async function loadDeck(): Promise<void> {
   try {
     if (host instanceof MockHost) deck = host.deck
     else {
+      await sweepCopies()
       const bytes = await host.pptx((p) => setStatus(`Reading the deck… ${p.done}/${p.total}`))
       deck = parseDeck(bytes, host.documentName() || 'Presentation')
     }
@@ -171,6 +172,16 @@ async function loadDeck(): Promise<void> {
     setStatus(`Couldn't read the deck: ${(e as Error).message}`)
   }
   updateExportButton()
+}
+
+/** Delete slide copies a transparent-background export left at the end of
+ * the deck (the pane closed while it was drawing one), before reading it. */
+async function sweepCopies(): Promise<void> {
+  const n = await host?.sweepCopies().catch((e) => {
+    console.error('sweepCopies', e)
+    return 0
+  })
+  if (n) console.warn(`Deleted ${n} temporary slide cop${n === 1 ? 'y' : 'ies'} left by an earlier export.`)
 }
 
 function showDeck(): void {
@@ -445,6 +456,7 @@ async function onExport(): Promise<void> {
     // one goes first: a parsed deck holds its whole file, and two copies of a
     // deck full of video is more than the web view can take.
     if (!(host instanceof MockHost)) deck = null
+    await sweepCopies()
     setStatus('Reading the deck from PowerPoint…')
     const bytes = await host.pptx((p) => setStatus(`Reading the deck from PowerPoint… ${p.done}/${p.total}`))
     deck = host instanceof MockHost ? host.deck : parseDeck(bytes, host.documentName() || 'Presentation')
@@ -593,6 +605,7 @@ async function remoteExport(job: RemoteJob, log: (kind: string, data: unknown) =
   if (!host) throw new Error('No host.')
   setStatus('Remote export: reading the deck…')
   if (!(host instanceof MockHost)) deck = null
+  await sweepCopies()
   let lastSlice = 0
   const bytes = await host.pptx((p) => {
     if (p.done - lastSlice >= 25 || p.done === p.total) log('export:read', `${(lastSlice = p.done)}/${p.total}`)

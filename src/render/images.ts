@@ -17,7 +17,9 @@
 
 import type { Deck } from '../deck/model'
 import type { Host } from '../host/types'
-import { ctx2d, decodeImage, encodeNative, imageSize, makeCanvas, type AnyCanvas } from './canvas'
+import { ctx2d, decodeImage, encodeNative, imageSize, makeCanvas, rgba, type AnyCanvas } from './canvas'
+import { pullMatte } from './matte'
+import type { OverlayCopyOptions } from './overlay-copy'
 import { mapPdf, pageForSlide, type PdfMapping } from './pdfmap'
 import type { Frame } from './sizing'
 
@@ -36,7 +38,8 @@ interface PdfDoc {
 const CACHE_LIMIT = 384 * 1024 * 1024
 
 export class SlideImages {
-  private cache = new Map<string, Promise<Uint8Array>>()
+  /** PNGs by what was asked for: one for a slide picture, two (on black, on white) for an overlay. */
+  private cache = new Map<string, Promise<Uint8Array[]>>()
   private sizes = new Map<string, number>()
   private cached = 0
   private pdfDoc?: Promise<{ doc: PdfDoc; map: PdfMapping }>
@@ -56,8 +59,14 @@ export class SlideImages {
   ) {}
 
   /** The slide alone, as a PNG of exactly w × h (or as near as PowerPoint gets). */
-  slidePng(index: number, w: number, h: number): Promise<Uint8Array> {
-    const key = `${index}@${w}x${h}`
+  async slidePng(index: number, w: number, h: number): Promise<Uint8Array> {
+    const [png] = await this.remember(`${index}@${w}x${h}`, async () => [
+      await (this.engine === 'powerpoint' ? this.powerpointPng(index, w, h) : this.pdfPng(index, w, h)),
+    ])
+    return png
+  }
+
+  private remember(key: string, make: () => Promise<Uint8Array[]>): Promise<Uint8Array[]> {
     let p = this.cache.get(key)
     if (p) {
       // Refresh its place in the eviction order.
@@ -65,14 +74,67 @@ export class SlideImages {
       this.cache.set(key, p)
       return p
     }
-    p = this.engine === 'powerpoint' ? this.powerpointPng(index, w, h) : this.pdfPng(index, w, h)
+    p = make()
     this.cache.set(key, p)
-    p.then((bytes) => {
-      this.sizes.set(key, bytes.length)
-      this.cached += bytes.length
+    p.then((pngs) => {
+      const n = pngs.reduce((t, b) => t + b.length, 0)
+      this.sizes.set(key, n)
+      this.cached += n
       this.evict()
     }, () => this.cache.delete(key))
     return p
+  }
+
+  /**
+   * The slide with its background left out, as straight-alpha RGBA of
+   * w × h (or PowerPoint's largest, scaled up). PowerPoint draws a copy of the
+   * slide on black and on white and the alpha comes from the difference
+   * (render/matte.ts). Only PowerPoint's own renderer can do this: its PDF
+   * has the background painted in.
+   */
+  async overlay(index: number, w: number, h: number, o: OverlayCopyOptions): Promise<AnyCanvas> {
+    if (this.engine !== 'powerpoint') throw new Error("A transparent background needs PowerPoint to draw the slides, and this export is drawing them from PowerPoint's PDF. Set Slide pictures from to Automatic or PowerPoint (exact).")
+    if (!this.host.caps.overlay) throw new Error('A transparent background needs a newer PowerPoint (PowerPointApi 1.8).')
+    const [black, white] = await this.remember(`${index}@${w}x${h}/overlay/${o.masterGraphics ? 'g' : ''}${o.dropBackPictures ? 'p' : ''}`, () => this.overlayPair(index, w, h, o))
+    const [b, wh] = await Promise.all([pngToCanvas(black), pngToCanvas(white)])
+    if (b.width !== wh.width || b.height !== wh.height) throw new Error(`PowerPoint drew slide ${index + 1} at two different sizes on black and on white.`)
+    const ctx = ctx2d(b)
+    const px = rgba(b)
+    pullMatte(px.data, rgba(wh).data, px.data)
+    ctx.putImageData(px, 0, 0)
+    return b
+  }
+
+  private async overlayPair(index: number, w: number, h: number, o: OverlayCopyOptions): Promise<Uint8Array[]> {
+    const colors = ['#000000', '#ffffff']
+    // Office.js can't keep add-in edits out of PowerPoint's Undo history, and
+    // Undo straight after the export restores a deleted copy (measured on
+    // PowerPoint for Mac 16.112.3, 2026-11-21). The tag survives the Undo, so
+    // the pane's sweep finds it — but only when it next reads the deck.
+    if (this.host.kind === 'powerpoint') this.once('overlay-undo', "PowerPoint keeps the temporary slide copies in its Undo history: Undo straight after this export puts one back at the end of the deck. They're marked, and the pane deletes any it finds the next time it reads the deck; or delete it yourself.")
+    if (w < this.refusedW) {
+      try {
+        const pngs = await this.host.renderOnBackgrounds(index, w, h, colors, o)
+        this.drawnW = Math.max(this.drawnW, w)
+        return pngs
+      } catch (e) {
+        if (!tooBig(e)) throw e
+        this.refusedW = Math.min(this.refusedW, w)
+      }
+    }
+    const maxW = await this.largestWidth(index)
+    this.once('overlay-up', `PowerPoint won't draw slides wider than ${maxW} px, and a transparent background can't come from its PDF, so transparent pictures wider than that are scaled up and will look softer.`)
+    return this.host.renderOnBackgrounds(index, maxW, Math.round((maxW * h) / w), colors, o)
+  }
+
+  /** One output frame with nothing behind the slide: transparent where its
+   * background was, and in the bars when it is letterboxed. */
+  async overlayFrame(index: number, f: Frame, o: OverlayCopyOptions): Promise<AnyCanvas> {
+    const m = await this.overlay(index, f.renderW, f.renderH, o)
+    if (f.dx === 0 && f.dy === 0 && f.width === f.dw && f.height === f.dh && m.width === f.width && m.height === f.height) return m
+    const c = makeCanvas(f.width, f.height)
+    ctx2d(c).drawImage(m as CanvasImageSource, f.dx, f.dy, f.dw, f.dh)
+    return c
   }
 
   private async powerpointPng(index: number, w: number, h: number): Promise<Uint8Array> {

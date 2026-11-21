@@ -11,12 +11,12 @@ import type { Deck, Shape } from '../deck/model'
 import { EMU_PER_POINT } from '../deck/model'
 import { parseDeck } from '../deck/parse'
 import { ctx2d, decodeImage, encodeNative, makeCanvas, type Ctx2D } from '../render/canvas'
-import type { FileProgress, Host, HostCapabilities } from './types'
+import type { FileProgress, Host, HostCapabilities, OverlayCopyOptions } from './types'
 
 export class MockHost implements Host {
   readonly kind = 'mock' as const
   readonly label = 'Browser preview (no PowerPoint)'
-  readonly caps: HostCapabilities = { slideImages: true, pdf: true, exportSlide: false, selection: true, apiVersion: 'mock' }
+  readonly caps: HostCapabilities = { slideImages: true, pdf: true, exportSlide: false, selection: true, overlay: true, apiVersion: 'mock' }
   readonly deck: Deck
   private pdfBytes?: Promise<Uint8Array>
   selection: number[] = [0]
@@ -67,14 +67,35 @@ export class MockHost implements Host {
     return this.selection
   }
 
-  async renderSlide(index: number, width: number, height: number): Promise<Uint8Array> {
+  renderSlide(index: number, width: number, height: number): Promise<Uint8Array> {
+    return this.draw(index, width, height, '#ffffff', false)
+  }
+
+  /** The mock draws no layout or master graphics, so only the background
+   * colour and the back pictures change. */
+  async renderOnBackgrounds(index: number, width: number, height: number, colors: string[], opts: OverlayCopyOptions): Promise<Uint8Array[]> {
+    const out: Uint8Array[] = []
+    for (const color of colors) out.push(await this.draw(index, width, height, color, opts.dropBackPictures))
+    return out
+  }
+
+  async sweepCopies(): Promise<number> {
+    return 0
+  }
+
+  private async draw(index: number, width: number, height: number, background: string, dropBack: boolean): Promise<Uint8Array> {
     const s = this.deck.slides[index]
     const scale = Math.min(width / this.deck.width, height / this.deck.height)
     const c = makeCanvas(Math.round(this.deck.width * scale), Math.round(this.deck.height * scale))
     const g = ctx2d(c)
-    g.fillStyle = '#ffffff'
+    g.fillStyle = background
     g.fillRect(0, 0, c.width, c.height)
-    for (const sh of s.shapes) await this.drawShape(g, sh, scale)
+    let back = dropBack
+    for (const sh of s.shapes) {
+      if (back && sh.kind === 'picture' && this.coversSlide(sh)) continue
+      back = false
+      await this.drawShape(g, sh, scale)
+    }
     g.fillStyle = 'rgba(0,0,0,0.35)'
     g.font = `${Math.max(10, c.height * 0.025)}px sans-serif`
     g.textAlign = 'right'
@@ -84,6 +105,12 @@ export class MockHost implements Host {
 
   async exportSlide(): Promise<Uint8Array> {
     throw new Error('The browser preview cannot split a deck; that needs PowerPoint.')
+  }
+
+  private coversSlide(sh: Shape): boolean {
+    const r = sh.rect
+    const tx = this.deck.width * 0.01, ty = this.deck.height * 0.01
+    return !!r && r.x <= tx && r.y <= ty && r.x + r.w >= this.deck.width - tx && r.y + r.h >= this.deck.height - ty
   }
 
   private async drawShape(g: Ctx2D, sh: Shape, k: number): Promise<void> {
